@@ -7,10 +7,13 @@ const { findAndAssignVolunteer } = require('../services/matcher');
 const { sendSMS } = require('../services/twilio');
 const { getIO } = require('../socket');
 
-// POST /api/report
-router.post('/api/report', async (req, res) => {
+// POST /api/reports
+router.post('/api/reports', async (req, res) => {
     try {
-        const { message, source, coordinates } = req.body;
+        const message = req.body.message || req.body.rawMessage;
+        const { source, coordinates } = req.body;
+
+        console.log("Incoming report:", req.body);
 
         // Step 1 — Validate
         if (!message) {
