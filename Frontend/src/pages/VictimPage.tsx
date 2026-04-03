@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import socketService from '../services/socket'
 import { useReports } from '../context/ReportsContext'
 
-const MOCK_MODE = true
+const MOCK_MODE = false
 // Set to false when real backend is connected
 
 type VictimState = 'idle' | 'recording' | 'submitting' | 'waiting' | 'assigned' | 'resolved'
@@ -206,7 +206,7 @@ export default function VictimPage() {
     }) => {
       if (data.reportId !== reportId) return
       setAssignedName(data.volunteerName)
-      setAssignedEta(data.eta)
+      setAssignedEta(data.eta || '8')
       setState('assigned')
     }
 
@@ -269,7 +269,7 @@ export default function VictimPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               message,
-              source: 'app',
+              source: voiceUsed ? 'voice' : 'app',
               coordinates: {
                 lat: 19.076 + (Math.random() - 0.5) * 0.05,
                 lng: 72.877 + (Math.random() - 0.5) * 0.05
@@ -281,8 +281,20 @@ export default function VictimPage() {
         if (!response.ok) throw new Error('Backend error')
 
         const data = await response.json()
-        setReportId(data._id)
-        setState('waiting') // 'Report received' state in UI
+        
+        // FIX 4: Update structure parse
+        // Backend returns: { success: true, report: { _id, ... }, assigned, volunteer }
+        if (data.report && data.report._id) {
+          setReportId(data.report._id)
+          
+          if (data.assigned === true) {
+            setAssignedName(data.volunteer || 'Rajesh Patil')
+            setAssignedEta('8')
+            setState('assigned')
+          } else {
+            setState('waiting') 
+          }
+        }
 
       } catch (err) {
         console.error('Submit failed:', err)

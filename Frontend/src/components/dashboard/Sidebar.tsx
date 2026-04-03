@@ -8,7 +8,7 @@ import socketService from '../../services/socket'
 import type { Report } from '../../mock/mockData'
 import { useReports } from '../../context/ReportsContext'
 
-const MOCK_MODE = true
+const MOCK_MODE = false
 
 function getUrgencyColor(urgency: number): string {
   const map: Record<number, string> = {

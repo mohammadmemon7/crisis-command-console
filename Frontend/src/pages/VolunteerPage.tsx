@@ -13,10 +13,10 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 })
 
-const MOCK_MODE = true
+const MOCK_MODE = false
 // Set to false when real backend is connected
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://crisis-command-console-production.up.railway.app'
 
 type VolunteerState = 'available' | 'newCase' | 'accepted' | 'resolved'
 
@@ -218,7 +218,7 @@ export default function VolunteerPage() {
       return
     }
     try {
-      await fetch(`${BACKEND_URL}/api/report/${caseId}/accept`, {
+      await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/report/${caseId}/accept`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -238,7 +238,7 @@ export default function VolunteerPage() {
       return
     }
     try {
-      await fetch(`${BACKEND_URL}/api/report/${caseId}/resolve`, {
+      await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/report/${caseId}/resolve`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' }
       })
@@ -256,7 +256,7 @@ export default function VolunteerPage() {
       return
     }
     try {
-      await fetch(`${BACKEND_URL}/api/report/${caseId}/decline`, {
+      await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/report/${caseId}/decline`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 

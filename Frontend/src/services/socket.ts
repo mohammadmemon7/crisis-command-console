@@ -3,7 +3,7 @@ import { MOCK_REPORTS, Report, Volunteer, Stats } from '../mock/mockData';
 
 export type { Report, Volunteer, Stats };
 
-const MOCK_MODE = true;
+const MOCK_MODE = false;
 
 interface SocketService {
   on(event: string, callback: Function): void;
@@ -68,7 +68,30 @@ const socketService: SocketService = MOCK_MODE ? {
     };
   }
 } : (() => {
-  const socket: Socket = io(import.meta.env.VITE_BACKEND_URL);
+  const SOCKET_URL = import.meta.env.VITE_BACKEND_URL 
+  || 'https://crisis-command-console-production.up.railway.app'
+
+  console.log('Connecting to:', SOCKET_URL)
+
+  const socket: Socket = io(SOCKET_URL, {
+    transports: ['websocket', 'polling'],
+    withCredentials: false,
+    reconnectionAttempts: 5,
+    reconnectionDelay: 1000
+  });
+
+  socket.on('connect', () => {
+    console.log('✅ Socket connected:', socket.id)
+  })
+
+  socket.on('connect_error', (err) => {
+    console.log('❌ Socket error:', err.message)
+  })
+
+  socket.on('disconnect', (reason) => {
+    console.log('🔴 Socket disconnected:', reason)
+  })
+
   return {
     on(event: string, callback: Function) {
       socket.on(event, callback as any);
