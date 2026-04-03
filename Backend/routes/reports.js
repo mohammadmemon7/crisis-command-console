@@ -44,24 +44,28 @@ router.post('/', async (req, res) => {
             : aiResult.location;
 
         // Step 3 — Create new Report
+        const needs = (aiResult.needs && aiResult.needs.length) ? aiResult.needs : ['rescue'];
+
         const newReport = new Report({
             rawMessage: message,
             location: locationLabel,
             ...(coordinates ? { coordinates } : {}),
             urgency: aiResult.urgency,
             peopleCount: aiResult.peopleCount,
-            needs: aiResult.needs,
+            needs,
             source: source || 'app',
             status: 'pending'
         });
         const savedReport = await newReport.save();
         console.log("✅ SAVED TO DB:", savedReport);
 
-        // Step 4 — Emit socket event
         getIO().emit('newReport', savedReport);
 
-        // Step 5 — Call findAndAssignVolunteer(savedReport)
         const matchResult = await findAndAssignVolunteer(savedReport);
+
+        const reportOut = await Report.findById(savedReport._id)
+            .populate('assignedTo', 'name phone location')
+            .lean();
 
         // Step 6 — If matchResult exists
         if (matchResult && matchResult.volunteer) {
@@ -80,10 +84,9 @@ router.post('/', async (req, res) => {
             });
         }
 
-        // Step 7 — Return 201 response
         return res.status(201).json({
             success: true,
-            report: savedReport,
+            report: reportOut || savedReport,
             assigned: !!matchResult,
             volunteer: matchResult ? matchResult.volunteer.name : null
         });
@@ -120,6 +123,9 @@ router.patch('/:id', async (req, res) => {
         if (volunteerId && status === 'assigned') {
             update.assignedTo = volunteerId;
         }
+        if (status === 'false_alarm') {
+            update.assignedTo = null;
+        }
 
         const updatedReport = await Report.findByIdAndUpdate(id, update, { new: true });
         
@@ -137,6 +143,15 @@ router.patch('/:id', async (req, res) => {
                 volunteer.isAvailable = true;
                 volunteer.activeCase = null;
                 volunteer.totalResolved = (volunteer.totalResolved || 0) + 1;
+                await volunteer.save();
+            }
+        }
+
+        if (status === 'false_alarm') {
+            const volunteer = await Volunteer.findOne({ activeCase: id });
+            if (volunteer) {
+                volunteer.isAvailable = true;
+                volunteer.activeCase = null;
                 await volunteer.save();
             }
         }

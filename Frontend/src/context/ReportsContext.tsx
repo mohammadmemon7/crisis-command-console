@@ -13,8 +13,20 @@ interface Stats {
   volunteersDeployed: number
 }
 
+export type ApiVolunteer = {
+  _id: string
+  name: string
+  phone?: string
+  skills?: string[]
+  area?: string
+  location?: { lat: number; lng: number }
+  isAvailable?: boolean
+  activeCase?: string | null
+}
+
 interface ReportsContextType {
   reports: Report[]
+  volunteers: ApiVolunteer[]
   addReport: (report: Report) => void
   updateReport: (id: string, update: Partial<Report>) => void
   resetReports: () => void
@@ -73,6 +85,7 @@ const MUMBAI_LOCATIONS = [
 
 export function ReportsProvider({ children }: { children: ReactNode }) {
   const [reports, setReports] = useState<Report[]>([])
+  const [volunteers, setVolunteers] = useState<ApiVolunteer[]>([])
   const [stats, setStats] = useState<Stats>({
     active: 0,
     resolved: 0,
@@ -89,15 +102,18 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
       const repJson = await repRes.json()
       const volJson = await volRes.json()
       const initialReports = repJson.reports
-      console.log('Reports from backend:', initialReports)
+      const initialVolunteers = volJson.volunteers || []
+      console.log('Reports:', (initialReports || []).length)
+      console.log('Volunteers:', initialVolunteers.length)
 
       setReports(initialReports || [])
+      setVolunteers(initialVolunteers)
 
       const activeCount = (initialReports || []).filter((r: any) =>
         r.status === 'pending' || r.status === 'assigned'
       ).length
       const resolvedCount = (initialReports || []).filter((r: any) => r.status === 'resolved').length
-      const deployedCount = (volJson.volunteers || []).filter((v: any) => !v.isAvailable).length
+      const deployedCount = initialVolunteers.filter((v: any) => !v.isAvailable).length
 
       setStats({
         active: activeCount,
@@ -106,7 +122,10 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
       })
     } catch (err) {
       console.error('Failed to load initial data:', err)
-      if (MOCK_MODE) setReports(MOCK_REPORTS)
+      if (MOCK_MODE) {
+        setReports(MOCK_REPORTS)
+        setVolunteers([])
+      }
     }
   }, [])
 
@@ -174,7 +193,6 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
         console.error('Chaos injection failed for message:', i, err)
       }
 
-      await new Promise(resolve => setTimeout(resolve, 300))
     }
     if (!MOCK_MODE) await refreshReports()
   }
@@ -189,7 +207,7 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
   }, [refreshReports])
 
   return (
-    <ReportsContext.Provider value={{ reports, addReport, updateReport, resetReports, refreshReports, injectChaos, stats }}>
+    <ReportsContext.Provider value={{ reports, volunteers, addReport, updateReport, resetReports, refreshReports, injectChaos, stats }}>
       {children}
     </ReportsContext.Provider>
   )

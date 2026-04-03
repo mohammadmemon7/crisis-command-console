@@ -5,11 +5,16 @@ import { useReports } from '../context/ReportsContext'
 import socketService from '../services/socket'
 import { toast } from 'sonner'
 import type { Report } from '../mock/mockData'
-import { MOCK_VOLUNTEERS } from '../mock/mockData'
+import type { ApiVolunteer } from '../context/ReportsContext'
 
 function hasValidCoords(r: Report): boolean {
   const c = (r as any).coordinates
   return !!(c && typeof c.lat === 'number' && typeof c.lng === 'number' && !Number.isNaN(c.lat) && !Number.isNaN(c.lng))
+}
+
+function volHasLocation(v: ApiVolunteer): boolean {
+  const loc = v.location
+  return !!(loc && typeof loc.lat === 'number' && typeof loc.lng === 'number')
 }
 
 // LEAFLET ICON FIX
@@ -20,17 +25,8 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 })
 
-// KEYFRAME INJECTION
-const style = document.createElement('style')
-style.textContent = `@keyframes pulse {
-  0% { box-shadow: 0 0 0 0 rgba(255,59,59,0.7); }
-  70% { box-shadow: 0 0 0 10px rgba(255,59,59,0); }
-  100% { box-shadow: 0 0 0 0 rgba(255,59,59,0); }
-}`
-document.head.appendChild(style)
-
 // getMarkerIcon FUNCTION
-function getMarkerIcon(urgency: number, status: string, source: string, isNew: boolean = false): L.DivIcon {
+function getMarkerIcon(urgency: number, status: string, source: string): L.DivIcon {
   const colorMap: Record<string, string> = {
     resolved: '#00C851',
     assigned: '#2563EB', // Blue pin for assigned
@@ -45,15 +41,12 @@ function getMarkerIcon(urgency: number, status: string, source: string, isNew: b
     : status === 'assigned' ? colorMap.assigned
     : colorMap[String(urgency)] ?? '#87CEEB'
 
-  const pulse = urgency === 5 && status === 'pending'
-    ? 'animation: pulse 1.5s infinite;' : ''
-
   const iconText = urgency === 5 ? '🚨' : urgency;
 
   return L.divIcon({
-    className: isNew ? 'marker-bounce' : '',
+    className: '',
     html: `
-      <div style="position:relative; display:inline-block; ${pulse}">
+      <div style="position:relative; display:inline-block;">
         <div style="
           width: 28px;
           height: 28px;
@@ -187,13 +180,13 @@ const getTimelineHtml = (report: Report) => {
 type FilterType = 'all' | 'critical' | 'unassigned' | 'resolved'
 
 const Map = () => {
-  const { reports, updateReport } = useReports()
+  const { reports, volunteers, updateReport } = useReports()
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
-  const [newReportIds, setNewReportIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    console.log('Reports from backend:', reports)
-  }, [reports])
+    console.log('Reports:', reports.length)
+    console.log('Volunteers:', volunteers.length)
+  }, [reports, volunteers])
 
   useEffect(() => {
     // FIX 1: reportUpdated listener for real-time pin transitions
@@ -216,15 +209,6 @@ const Map = () => {
         description: `${report.location} — Urgency ${report.urgency}/5`,
         duration: 3000,
       })
-      setNewReportIds(prev => new Set([...prev, report.id, (report as any)._id]))
-      setTimeout(() => {
-        setNewReportIds(prev => {
-          const next = new Set(prev)
-          next.delete(report.id)
-          next.delete((report as any)._id)
-          return next
-        })
-      }, 3000)
     }
 
     socketService.on('newReport', handleNewReport)
@@ -273,12 +257,14 @@ const Map = () => {
         <TileLayer attribution='&copy; CARTO' url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
 
         {reports.filter(r => r.status === 'assigned' && hasValidCoords(r)).map(report => {
-          const assignedVol = MOCK_VOLUNTEERS.find(v => v.id === report.assignedTo || v.name === report.assignedTo || !v.isAvailable)
-          if (!assignedVol) return null
+          const aid = (report as any).assignedTo
+          const volId = typeof aid === 'object' && aid?._id ? aid._id : aid
+          const assignedVol = volunteers.find(v => String(v._id) === String(volId))
+          if (!assignedVol || !volHasLocation(assignedVol)) return null
           return (
             <Polyline
               key={`line-${report.id || (report as any)._id}`}
-              positions={[[assignedVol.location.lat, assignedVol.location.lng], [report.coordinates.lat, report.coordinates.lng]]}
+              positions={[[assignedVol.location!.lat, assignedVol.location!.lng], [(report as any).coordinates.lat, (report as any).coordinates.lng]]}
               pathOptions={{ color: '#2563EB', weight: 2, dashArray: '5,10', opacity: 0.7 }}
             />
           )
@@ -288,7 +274,7 @@ const Map = () => {
           <Marker
             key={report.id || (report as any)._id}
             position={[report.coordinates.lat, report.coordinates.lng]}
-            icon={getMarkerIcon(report.urgency, report.status, report.source, newReportIds.has(report.id) || newReportIds.has((report as any)._id))}
+            icon={getMarkerIcon(report.urgency, report.status, report.source)}
           >
             <Popup>
               <div style={{ minWidth: '200px', fontFamily: 'monospace', fontSize: '12px', lineHeight: '1.6' }}>
@@ -314,7 +300,11 @@ const Map = () => {
                 {report.status === 'assigned' && (
                   <div style={{ marginTop: '8px', padding: '6px 8px', background: '#EFF6FF', borderLeft: '3px solid #2563EB', borderRadius: '0 4px 4px 0' }}>
                     <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#1E40AF' }}>👤 Volunteer Assigned</div>
-                    <div style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>{report.assignedTo || 'En route...'}</div>
+                    <div style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>
+                      {typeof (report as any).assignedTo === 'object' && (report as any).assignedTo?.name
+                        ? (report as any).assignedTo.name
+                        : (report as any).assignedVolunteer || String((report as any).assignedTo || 'En route...')}
+                    </div>
                   </div>
                 )}
                 <div dangerouslySetInnerHTML={{ __html: getTimelineHtml(report) }} />
@@ -323,20 +313,21 @@ const Map = () => {
           </Marker>
         ))}
 
-        {MOCK_VOLUNTEERS.filter(v => !v.isAvailable).map(vol => {
+        {volunteers.filter(volHasLocation).map(vol => {
+          const busy = vol.isAvailable === false
           const volIcon = L.divIcon({
             className: '',
-            html: `<div style="position:relative;display:inline-block;"><div style="width:26px;height:26px;border-radius:50%;background:#2563EB;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:bold;">V</div><span style="position:absolute;top:-6px;right:-12px;background:#1D4ED8;color:white;font-size:7px;font-weight:bold;padding:1px 3px;border-radius:3px;white-space:nowrap;z-index:10;">EN ROUTE</span></div>`,
+            html: `<div style="position:relative;display:inline-block;"><div style="width:26px;height:26px;border-radius:50%;background:${busy ? '#2563EB' : '#22C55E'};border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:bold;">V</div>${busy ? `<span style="position:absolute;top:-6px;right:-12px;background:#1D4ED8;color:white;font-size:7px;font-weight:bold;padding:1px 3px;border-radius:3px;white-space:nowrap;z-index:10;">BUSY</span>` : `<span style="position:absolute;top:-6px;right:-12px;background:#15803D;color:white;font-size:7px;font-weight:bold;padding:1px 3px;border-radius:3px;white-space:nowrap;z-index:10;">FREE</span>`}</div>`,
             iconSize: [26, 26], iconAnchor: [13, 13],
           })
           return (
-            <Marker key={`vol-${vol.id}`} position={[vol.location.lat, vol.location.lng]} icon={volIcon}>
+            <Marker key={`vol-${vol._id}`} position={[vol.location!.lat, vol.location!.lng]} icon={volIcon}>
               <Popup>
                 <div style={{ fontFamily: 'sans-serif', minWidth: '160px' }}>
                   <div style={{ fontWeight: 'bold', fontSize: '13px' }}>👤 {vol.name}</div>
-                  <div style={{ fontSize: '11px', color: '#555', marginTop: '4px' }}>🛠 Skills: {vol.skills.join(', ')}</div>
-                  <div style={{ fontSize: '11px', color: '#555' }}>📍 Area: {vol.area}</div>
-                  <div style={{ marginTop: '6px', fontSize: '11px', color: '#2563EB', fontWeight: 'bold' }}>🚗 En route to active case</div>
+                  <div style={{ fontSize: '11px', color: '#555', marginTop: '4px' }}>🛠 Skills: {(vol.skills || []).join(', ')}</div>
+                  <div style={{ fontSize: '11px', color: '#555' }}>📍 Area: {vol.area || '—'}</div>
+                  <div style={{ marginTop: '6px', fontSize: '11px', color: '#2563EB', fontWeight: 'bold' }}>{busy ? '🚗 Deployed' : '✅ Available'}</div>
                 </div>
               </Popup>
             </Marker>

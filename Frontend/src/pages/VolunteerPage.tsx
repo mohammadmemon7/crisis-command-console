@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import L from 'leaflet'
 import { MOCK_VOLUNTEERS } from '../mock/mockData'
 import socketService from '../services/socket'
 import { API_URL } from '../config'
+import { useReports, type ApiVolunteer } from '../context/ReportsContext'
 
 // Fix leaflet icon
 delete (L.Icon.Default.prototype as any)._getIconUrl
@@ -160,11 +161,38 @@ const PhoneFrame = ({ children }: { children: React.ReactNode }) => (
 
 export default function VolunteerPage() {
   const navigate = useNavigate()
+  const { volunteers: apiVolunteers, refreshReports } = useReports()
+  const volunteersList: ApiVolunteer[] = useMemo(
+    () =>
+      MOCK_MODE
+        ? MOCK_VOLUNTEERS.map(v => ({
+            _id: v.id,
+            name: v.name,
+            area: v.area,
+            skills: v.skills,
+            location: v.location,
+            isAvailable: v.isAvailable,
+          }))
+        : apiVolunteers,
+    [apiVolunteers]
+  )
+
   const [volunteerState, setVolunteerState] = useState<VolunteerState>('available')
-  const [selectedVolunteer, setSelectedVolunteer] = useState(MOCK_VOLUNTEERS[0])
+  const [selectedVolunteer, setSelectedVolunteer] = useState<ApiVolunteer | null>(null)
   const [currentCase, setCurrentCase] = useState<Case>(MOCK_CASE)
   const [caseTimer, setCaseTimer] = useState(30)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    if (!volunteersList.length) {
+      setSelectedVolunteer(null)
+      return
+    }
+    setSelectedVolunteer(prev => {
+      if (prev && volunteersList.some(v => String(v._id) === String(prev._id))) return prev
+      return volunteersList[0]
+    })
+  }, [volunteersList])
 
   useEffect(() => {
     if (volunteerState === 'available' && MOCK_MODE) {
@@ -222,9 +250,10 @@ export default function VolunteerPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status: 'assigned',
-          volunteerId: selectedVolunteer?.id
+          volunteerId: selectedVolunteer?._id
         })
       })
+      await refreshReports()
       setVolunteerState('accepted')
     } catch (err) {
       console.error('Accept failed:', err)
@@ -233,8 +262,7 @@ export default function VolunteerPage() {
 
   const resolveCase = async (caseId: string) => {
     if (MOCK_MODE) {
-      setVolunteerState('resolved')
-      setTimeout(() => setVolunteerState('available'), 3000)
+      setVolunteerState('available')
       return
     }
     try {
@@ -243,8 +271,8 @@ export default function VolunteerPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'resolved' })
       })
-      setVolunteerState('resolved')
-      setTimeout(() => setVolunteerState('available'), 3000)
+      await refreshReports()
+      setVolunteerState('available')
     } catch (err) {
       console.error('Resolve failed:', err)
     }
@@ -262,9 +290,10 @@ export default function VolunteerPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status: 'false_alarm',
-          volunteerId: selectedVolunteer?.id
+          volunteerId: selectedVolunteer?._id
         })
       })
+      await refreshReports()
       setVolunteerState('available')
     } catch (err) {
       console.error('Decline failed:', err)
@@ -278,17 +307,18 @@ export default function VolunteerPage() {
           <div style={STYLES.logo}>⚡ CRISISNET VOLUNTEER</div>
           
           <div>
-            <div style={STYLES.label}>Volunteer Select Karo</div>
+            <div style={STYLES.label}>Volunteer Select Karo ({volunteersList.length})</div>
             <select
-              value={selectedVolunteer.id}
+              value={selectedVolunteer?._id || ''}
               onChange={(e) => {
-                const vol = MOCK_VOLUNTEERS.find(v => v.id === e.target.value)
+                const vol = volunteersList.find(v => String(v._id) === e.target.value)
                 if (vol) setSelectedVolunteer(vol)
               }}
               style={STYLES.selectStyle}
+              disabled={!volunteersList.length}
             >
-              {MOCK_VOLUNTEERS.map(v => (
-                <option key={v.id} value={v.id}>{v.name} — {v.area}</option>
+              {volunteersList.map(v => (
+                <option key={v._id} value={v._id}>{v.name} — {v.area || ''}</option>
               ))}
             </select>
           </div>
@@ -302,12 +332,12 @@ export default function VolunteerPage() {
           </div>
           
           <div style={{ display:'flex', flexWrap:'wrap', gap:'6px', justifyContent:'center' }}>
-            {selectedVolunteer.skills.map(skill => (
+            {(selectedVolunteer?.skills || []).map(skill => (
               <span key={skill} style={STYLES.needsBadge}>{skill}</span>
             ))}
           </div>
           
-          <div style={STYLES.subText}>Naya case 12 seconds mein aayega (mock)</div>
+          <div style={STYLES.subText}>MongoDB volunteers: {volunteersList.length}</div>
         </div>
       )
     }
@@ -401,7 +431,7 @@ export default function VolunteerPage() {
               </Marker>
               
               <Marker
-                position={[selectedVolunteer.location.lat, selectedVolunteer.location.lng]}
+                position={[selectedVolunteer!.location!.lat, selectedVolunteer!.location!.lng]}
                 icon={L.divIcon({
                   className:'',
                   html:`<div style="width:14px;height:14px;background:#57CEEB;border-radius:50%;

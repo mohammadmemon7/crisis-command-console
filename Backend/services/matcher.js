@@ -14,22 +14,24 @@ function haversine(lat1, lng1, lat2, lng2) {
 
 async function findAndAssignVolunteer(report) {
   try {
-    // Step 1: If report has no coordinates or needs, return null
-    if (!report.coordinates?.lat || !report.needs?.length) return null;
+    if (!report.coordinates?.lat || report.coordinates.lng == null) return null;
 
-    // Step 2: Get all available volunteers from MongoDB
     const volunteers = await Volunteer.find({ isAvailable: true });
+    if (volunteers.length === 0) return null;
 
-    // Step 3: Filter by skill match
-    const filtered = volunteers.filter(volunteer => 
-      volunteer.skills && volunteer.skills.some(skill => report.needs.includes(skill))
+    const needs = report.needs && report.needs.length ? report.needs : ['rescue'];
+
+    const withSkill = volunteers.filter(vol =>
+      vol.skills && vol.skills.length && vol.skills.some(skill => needs.includes(skill))
     );
 
-    // Step 4: If no volunteers found after filter, return null
-    if (filtered.length === 0) return null;
+    const candidates = withSkill.length > 0 ? withSkill : volunteers;
 
-    // Step 5: Calculate distance for each filtered volunteer
-    filtered.forEach(volunteer => {
+    candidates.forEach(volunteer => {
+      if (!volunteer.location?.lat || volunteer.location?.lng == null) {
+        volunteer.distance = Infinity;
+        return;
+      }
       volunteer.distance = haversine(
         report.coordinates.lat,
         report.coordinates.lng,
@@ -38,11 +40,10 @@ async function findAndAssignVolunteer(report) {
       );
     });
 
-    // Step 6: Sort by distance ascending
-    filtered.sort((a, b) => a.distance - b.distance);
+    candidates.sort((a, b) => (a.distance || Infinity) - (b.distance || Infinity));
 
-    // Step 7: Take first volunteer (nearest)
-    const nearest = filtered[0];
+    const nearest = candidates[0];
+    if (!nearest || nearest.distance === Infinity) return null;
 
     // Step 8: Atomic MongoDB update
     await Volunteer.findByIdAndUpdate(nearest._id, {
