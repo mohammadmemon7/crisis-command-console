@@ -1,18 +1,30 @@
 let io;
 const init = (httpServer) => {
   const { Server } = require('socket.io');
+
+  const allowedOrigins = [
+    process.env.FRONTEND_URL,
+    'http://localhost:8080',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://crisis-command-console-production.up.railway.app'
+  ].filter(Boolean);
+
   io = new Server(httpServer, {
     cors: {
-      origin: [
-        process.env.FRONTEND_URL,
-        'http://localhost:5173',
-        'http://localhost:3000',
-        'https://crisis-command-console-production.up.railway.app'
-      ].filter(Boolean),
-      methods: ['GET', 'POST'],
-      credentials: false
+      origin: function (origin, callback) {
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) !== -1 || /\.vercel\.app$/.test(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
+      methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+      credentials: true
     }
   });
+
   io.on('connection', (socket) => {
     console.log('Client connected:', socket.id);
     socket.on('disconnect', () => 
