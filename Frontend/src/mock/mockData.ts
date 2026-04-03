@@ -8,6 +8,8 @@ export interface Report {
   status: 'pending' | 'assigned' | 'resolved';
   source: 'app' | 'sms' | 'voice' | 'sos';
   assignedVolunteer?: string;
+  assignedTo?: string; // Links to Volunteer ID or Name
+  rawMessage?: string;
   createdAt: Date;
 }
 
@@ -35,7 +37,8 @@ export const MOCK_REPORTS: Report[] = [
     urgency: 5,
     peopleCount: 8,
     needs: ["rescue", "water"],
-    status: 'pending',
+    status: 'assigned',
+    assignedTo: 'v1',
     source: 'app',
     createdAt: new Date(Date.now() - 1000 * 60 * 5)
   },
@@ -46,7 +49,8 @@ export const MOCK_REPORTS: Report[] = [
     urgency: 5,
     peopleCount: 12,
     needs: ["medical", "rescue", "shelter"],
-    status: 'pending',
+    status: 'assigned',
+    assignedTo: 'v4',
     source: 'sms',
     createdAt: new Date(Date.now() - 1000 * 60 * 12)
   },
@@ -57,7 +61,8 @@ export const MOCK_REPORTS: Report[] = [
     urgency: 5,
     peopleCount: 5,
     needs: ["boat", "rescue"],
-    status: 'pending',
+    status: 'assigned',
+    assignedTo: 'v3',
     source: 'voice',
     createdAt: new Date(Date.now() - 1000 * 60 * 18)
   },
@@ -80,45 +85,34 @@ export const MOCK_REPORTS: Report[] = [
     peopleCount: 3,
     needs: ["food", "water"],
     status: 'assigned',
+    assignedTo: 'v2',
     source: 'app',
     assignedVolunteer: "Sunita Sharma",
     createdAt: new Date(Date.now() - 1000 * 60 * 30)
   },
   {
-    id: "r6",
-    location: "Borivali East, National Park gate ke baahar log phanse hain",
-    coordinates: { lat: 19.2307, lng: 72.8567 },
-    urgency: 3,
-    peopleCount: 10,
-    needs: ["food", "water"],
+    id: "r11",
+    location: "Malad West, link road flooding, 2 families stuck on first floor",
+    coordinates: { lat: 19.1880, lng: 72.8485 },
+    urgency: 4,
+    peopleCount: 7,
+    needs: ["rescue", "food"],
     status: 'assigned',
+    assignedTo: 'v5',
     source: 'sms',
-    assignedVolunteer: "Ramesh Patil",
-    createdAt: new Date(Date.now() - 1000 * 60 * 35)
+    createdAt: new Date(Date.now() - 1000 * 60 * 5)
   },
   {
-    id: "r7",
-    location: "Sion Circle ke paas heavy waterlogging, elder person needs transport",
-    coordinates: { lat: 19.0397, lng: 72.8644 },
+    id: "r12",
+    location: "Chembur Naka, tree fallen on car, 1 person injured",
+    coordinates: { lat: 19.0520, lng: 72.8990 },
     urgency: 3,
-    peopleCount: 15,
-    needs: ["boat", "medical"],
+    peopleCount: 1,
+    needs: ["medical", "rescue"],
     status: 'assigned',
-    source: 'voice',
-    assignedVolunteer: "Abdul Khan",
-    createdAt: new Date(Date.now() - 1000 * 60 * 45)
-  },
-  {
-    id: "r8",
-    location: "Dadar Chowpatty, 4 people stranded due to high tide",
-    coordinates: { lat: 19.0186, lng: 72.8440 },
-    urgency: 3,
-    peopleCount: 4,
-    needs: ["rescue", "medical"],
-    status: 'assigned',
-    source: 'sos',
-    assignedVolunteer: "Priya Nair",
-    createdAt: new Date(Date.now() - 1000 * 60 * 50)
+    assignedTo: 'v6',
+    source: 'sms',
+    createdAt: new Date(Date.now() - 1000 * 60 * 10)
   },
   {
     id: "r9",
@@ -130,17 +124,6 @@ export const MOCK_REPORTS: Report[] = [
     status: 'resolved',
     source: 'app',
     createdAt: new Date(Date.now() - 1000 * 60 * 55)
-  },
-  {
-    id: "r10",
-    location: "Vikhroli Highway, flat tyre in flooded zone, need water",
-    coordinates: { lat: 19.0989, lng: 72.9252 },
-    urgency: 1,
-    peopleCount: 1,
-    needs: ["water"],
-    status: 'resolved',
-    source: 'sms',
-    createdAt: new Date(Date.now() - 1000 * 60 * 60)
   }
 ];
 
@@ -150,7 +133,7 @@ export const MOCK_VOLUNTEERS: Volunteer[] = [
     name: "Ramesh Patil",
     area: "Kurla",
     skills: ["rescue", "vehicle", "food"],
-    isAvailable: true,
+    isAvailable: false,
     location: { lat: 19.0730, lng: 72.8800 }
   },
   {
@@ -158,7 +141,7 @@ export const MOCK_VOLUNTEERS: Volunteer[] = [
     name: "Sunita Sharma",
     area: "Andheri",
     skills: ["medical", "food"],
-    isAvailable: true,
+    isAvailable: false,
     location: { lat: 19.1200, lng: 72.8475 }
   },
   {
@@ -166,7 +149,7 @@ export const MOCK_VOLUNTEERS: Volunteer[] = [
     name: "Abdul Khan",
     area: "Bandra",
     skills: ["boat", "rescue", "vehicle"],
-    isAvailable: true,
+    isAvailable: false,
     location: { lat: 19.0600, lng: 72.8300 }
   },
   {
@@ -196,8 +179,8 @@ export const MOCK_VOLUNTEERS: Volunteer[] = [
 ];
 
 export const MOCK_STATS: Stats = {
-  active: 6,
-  resolved: 2,
-  volunteersDeployed: 3,
+  active: 7,
+  resolved: 1,
+  volunteersDeployed: 6,
   avgResponseTime: "8.3 min"
 };

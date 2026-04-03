@@ -7,8 +7,13 @@ const MOCK_MODE = true;
 
 interface SocketService {
   on(event: string, callback: Function): void;
+  off(event: string, callback: Function): void;
   emit(event: string, data: any): void;
   disconnect(): void;
+  onConnect(cb: () => void): void;
+  onDisconnect(cb: () => void): void;
+  isConnected(): boolean;
+  getSocket(): any;
 }
 
 const intervals: ReturnType<typeof setInterval>[] = [];
@@ -37,6 +42,9 @@ const socketService: SocketService = MOCK_MODE ? {
       intervals.push(interval);
     }
   },
+  off(event: string, callback: Function) {
+    console.log(`[MockSocket] off → ${event}`);
+  },
   emit(event: string, data: any) {
     console.log(`[MockSocket] emit → ${event}`, data);
   },
@@ -44,6 +52,20 @@ const socketService: SocketService = MOCK_MODE ? {
     intervals.forEach(clearInterval);
     intervals.length = 0;
     console.log('[MockSocket] disconnected, all intervals cleared');
+  },
+  onConnect(cb: () => void) {
+    setTimeout(cb, 500);
+  },
+  onDisconnect(cb: () => void) {
+  },
+  isConnected() {
+    return true;
+  },
+  getSocket() {
+    return {
+      on: (ev: string, cb: Function) => this.on(ev, cb),
+      off: (ev: string, cb: Function) => this.off(ev, cb),
+    };
   }
 } : (() => {
   const socket: Socket = io(import.meta.env.VITE_BACKEND_URL);
@@ -51,11 +73,26 @@ const socketService: SocketService = MOCK_MODE ? {
     on(event: string, callback: Function) {
       socket.on(event, callback as any);
     },
+    off(event: string, callback: Function) {
+      socket.off(event, callback as any);
+    },
     emit(event: string, data: any) {
       socket.emit(event, data);
     },
     disconnect() {
       socket.disconnect();
+    },
+    getSocket() {
+      return socket;
+    },
+    onConnect(cb: () => void) {
+      socket.on('connect', cb);
+    },
+    onDisconnect(cb: () => void) {
+      socket.on('disconnect', cb);
+    },
+    isConnected() {
+      return socket.connected;
     }
   };
 })();

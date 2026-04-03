@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import L from 'leaflet'
 import { MOCK_VOLUNTEERS } from '../mock/mockData'
+import socketService from '../services/socket'
 
 // Fix leaflet icon
 delete (L.Icon.Default.prototype as any)._getIconUrl
@@ -13,13 +14,28 @@ L.Icon.Default.mergeOptions({
 })
 
 const MOCK_MODE = true
+// Set to false when real backend is connected
+
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'
 
 type VolunteerState = 'available' | 'newCase' | 'accepted' | 'resolved'
 
-const MOCK_CASE = {
+interface Case {
+  _id?: string
+  id?: string
+  location: string
+  urgency: 1 | 2 | 3 | 4 | 5
+  peopleCount: number
+  needs: string[]
+  distance?: number | string
+  minutesAgo?: number
+  coordinates: { lat: number; lng: number }
+}
+
+const MOCK_CASE: Case = {
   id: 'mock_001',
   location: 'Kurla Station ke paas, Platform 2',
-  urgency: 5 as const,
+  urgency: 5,
   peopleCount: 4,
   needs: ['rescue', 'medical'],
   distance: 2.3,
@@ -29,7 +45,7 @@ const MOCK_CASE = {
 
 const STYLES = {
   page: {
-    minHeight: '100vh',
+    minHeight: '100%',
     background: '#0a0a12',
     display: 'flex',
     flexDirection: 'column' as const,
@@ -41,11 +57,7 @@ const STYLES = {
   },
   card: {
     width: '100%',
-    maxWidth: '400px',
-    background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: '16px',
-    padding: '28px 24px',
+    background: 'transparent',
     display: 'flex',
     flexDirection: 'column' as const,
     gap: '16px',
@@ -56,6 +68,7 @@ const STYLES = {
     color: '#FF8C00',
     fontWeight: 700,
     textAlign: 'center' as const,
+    marginBottom: '8px',
   },
   label: {
     fontSize: '11px',
@@ -121,14 +134,14 @@ const STYLES = {
 }
 
 const BACK_BTN_STYLE = {
-  position: 'fixed' as const,
-  top: '16px',
-  left: '16px',
+  position: 'absolute' as const,
+  top: '20px',
+  left: '20px',
   background: 'rgba(255,255,255,0.06)',
   border: '1px solid rgba(255,255,255,0.12)',
   borderRadius: '6px',
   padding: '6px 10px',
-  fontSize: '11px',
+  fontSize: '10px',
   color: '#888',
   cursor: 'pointer',
   fontFamily: 'monospace',
@@ -136,14 +149,24 @@ const BACK_BTN_STYLE = {
   zIndex: 100,
 }
 
+const PhoneFrame = ({ children }: { children: React.ReactNode }) => (
+  <div className="min-h-screen flex items-center justify-center bg-gray-950 p-4 font-sans">
+    <div className="relative mx-auto max-w-[390px] w-full border-4 border-gray-800 rounded-[2.5rem] shadow-2xl overflow-hidden bg-gray-800 p-2 aspect-[9/19.5]">
+      <div className="rounded-[2rem] overflow-hidden bg-background h-full w-full relative border border-white/5">
+        {children}
+      </div>
+    </div>
+  </div>
+)
+
 export default function VolunteerPage() {
   const navigate = useNavigate()
   const [volunteerState, setVolunteerState] = useState<VolunteerState>('available')
   const [selectedVolunteer, setSelectedVolunteer] = useState(MOCK_VOLUNTEERS[0])
+  const [currentCase, setCurrentCase] = useState<Case>(MOCK_CASE)
   const [caseTimer, setCaseTimer] = useState(30)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Auto-arrival of cases in MOCK_MODE
   useEffect(() => {
     if (volunteerState === 'available' && MOCK_MODE) {
       const t = setTimeout(() => {
@@ -153,7 +176,6 @@ export default function VolunteerPage() {
     }
   }, [volunteerState])
 
-  // New Case countdown timer
   useEffect(() => {
     if (volunteerState === 'newCase') {
       setCaseTimer(30)
@@ -175,36 +197,81 @@ export default function VolunteerPage() {
     }
   }, [volunteerState])
 
-  const handleAccept = () => {
+  useEffect(() => {
+    // Listen for new case assignments from backend
+    const handleNewCase = (caseData: any) => {
+      setCurrentCase(caseData)
+      setVolunteerState('newCase')
+    }
+
+    socketService.getSocket().on('newCase', handleNewCase)
+
+    return () => {
+      socketService.getSocket().off('newCase', handleNewCase)
+    }
+  }, [])
+
+  const acceptCase = async (caseId: string) => {
     if (timerRef.current) clearInterval(timerRef.current)
-    setVolunteerState('accepted')
+    if (MOCK_MODE) {
+      setVolunteerState('accepted')
+      return
+    }
+    try {
+      await fetch(`${BACKEND_URL}/api/report/${caseId}/accept`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          volunteerId: selectedVolunteer?.id
+        })
+      })
+      setVolunteerState('accepted')
+    } catch (err) {
+      console.error('Accept failed:', err)
+    }
   }
 
-  const handleDecline = () => {
+  const resolveCase = async (caseId: string) => {
+    if (MOCK_MODE) {
+      setVolunteerState('resolved')
+      setTimeout(() => setVolunteerState('available'), 3000)
+      return
+    }
+    try {
+      await fetch(`${BACKEND_URL}/api/report/${caseId}/resolve`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      setVolunteerState('resolved')
+      setTimeout(() => setVolunteerState('available'), 3000)
+    } catch (err) {
+      console.error('Resolve failed:', err)
+    }
+  }
+
+  const declineCase = async (caseId: string) => {
     if (timerRef.current) clearInterval(timerRef.current)
-    setVolunteerState('available')
+    if (MOCK_MODE) {
+      setVolunteerState('available')
+      return
+    }
+    try {
+      await fetch(`${BACKEND_URL}/api/report/${caseId}/decline`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          volunteerId: selectedVolunteer?.id
+        })
+      })
+      setVolunteerState('available')
+    } catch (err) {
+      console.error('Decline failed:', err)
+    }
   }
 
-  const handleResolved = () => {
-    setVolunteerState('resolved')
-    setTimeout(() => setVolunteerState('available'), 3000)
-  }
-
-  const handleFalseAlarm = () => {
-    setVolunteerState('resolved')
-    setTimeout(() => setVolunteerState('available'), 3000)
-  }
-
-  // ── AVAILABLE ─────────────────────────────────────────────
-  if (volunteerState === 'available') {
-    return (
-      <div style={STYLES.page}>
-        <button
-          onClick={() => navigate('/')}
-          style={BACK_BTN_STYLE}
-        >
-          ← Command Centre
-        </button>
+  const renderContent = () => {
+    if (volunteerState === 'available') {
+      return (
         <div style={STYLES.card}>
           <div style={STYLES.logo}>⚡ CRISISNET VOLUNTEER</div>
           
@@ -240,21 +307,12 @@ export default function VolunteerPage() {
           
           <div style={STYLES.subText}>Naya case 12 seconds mein aayega (mock)</div>
         </div>
-      </div>
-    )
-  }
+      )
+    }
 
-  // ── NEW CASE ──────────────────────────────────────────────
-  if (volunteerState === 'newCase') {
-    return (
-      <div style={STYLES.page}>
-        <button
-          onClick={() => navigate('/')}
-          style={BACK_BTN_STYLE}
-        >
-          ← Command Centre
-        </button>
-        <div style={{ ...STYLES.card, ...STYLES.caseCard }}>
+    if (volunteerState === 'newCase') {
+      return (
+        <div style={{ ...STYLES.card, ...STYLES.caseCard, padding: '20px' }}>
           <div style={{ ...STYLES.logo, color:'#FF3B3B' }}>🚨 NAYA CASE AAYA</div>
           
           <div style={{ textAlign:'center' }}>
@@ -276,17 +334,17 @@ export default function VolunteerPage() {
             gap: 10,
             fontSize: '13px'
           }}>
-            <div>📍 {MOCK_CASE.location}</div>
+            <div>📍 {currentCase.location}</div>
             
             <div>
-              <div style={STYLES.label}>URGENCY {MOCK_CASE.urgency}/5</div>
+              <div style={STYLES.label}>URGENCY {currentCase.urgency}/5</div>
               <div style={{
                 width: '100%', height: 6,
                 background: 'rgba(255,255,255,0.1)',
                 borderRadius: 3, marginTop: 4
               }}>
                 <div style={{
-                  width: (MOCK_CASE.urgency / 5 * 100) + '%',
+                  width: (currentCase.urgency / 5 * 100) + '%',
                   height: '100%',
                   background: 'linear-gradient(90deg, #FF8C00, #FF3B3B)',
                   borderRadius: 3
@@ -294,43 +352,34 @@ export default function VolunteerPage() {
               </div>
             </div>
             
-            <div>👥 {MOCK_CASE.peopleCount} log</div>
+            <div>👥 {currentCase.peopleCount} log</div>
             
             <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-              {MOCK_CASE.needs.map(need => (
+              {currentCase.needs.map(need => (
                 <span key={need} style={STYLES.needsBadge}>{need}</span>
               ))}
             </div>
             
             <div style={{ display:'flex', justifyContent:'space-between', color: '#888' }}>
-              <span>📏 {MOCK_CASE.distance} km door</span>
-              <span>⏱️ {MOCK_CASE.minutesAgo} min ago</span>
+              <span>📏 {currentCase.distance || '2.3'} km door</span>
+              <span>⏱️ {currentCase.minutesAgo || '3'} min ago</span>
             </div>
           </div>
           
-          <button onClick={handleAccept} style={STYLES.btnAccept}>✅ ACCEPT</button>
-          <button onClick={handleDecline} style={STYLES.btnDecline}>❌ DECLINE</button>
+          <button onClick={() => acceptCase(currentCase?.id || currentCase?._id || '')} style={STYLES.btnAccept}>✅ ACCEPT</button>
+          <button onClick={() => declineCase(currentCase?.id || currentCase?._id || '')} style={STYLES.btnDecline}>❌ DECLINE</button>
         </div>
-      </div>
-    )
-  }
+      )
+    }
 
-  // ── ACCEPTED ──────────────────────────────────────────────
-  if (volunteerState === 'accepted') {
-    return (
-      <div style={STYLES.page}>
-        <button
-          onClick={() => navigate('/')}
-          style={BACK_BTN_STYLE}
-        >
-          ← Command Centre
-        </button>
+    if (volunteerState === 'accepted') {
+      return (
         <div style={STYLES.card}>
           <div style={STYLES.logo}>⚡ CASE ACCEPTED</div>
           
           <div style={{ height: 220, borderRadius: 10, overflow:'hidden', border:'1px solid rgba(255,255,255,0.1)' }}>
             <MapContainer
-              center={[MOCK_CASE.coordinates.lat, MOCK_CASE.coordinates.lng]}
+              center={[currentCase.coordinates.lat, currentCase.coordinates.lng]}
               zoom={14}
               style={{ height:'100%', width:'100%' }}
               zoomControl={false}
@@ -338,7 +387,7 @@ export default function VolunteerPage() {
               <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
               
               <Marker
-                position={[MOCK_CASE.coordinates.lat, MOCK_CASE.coordinates.lng]}
+                position={[currentCase.coordinates.lat, currentCase.coordinates.lng]}
                 icon={L.divIcon({
                   className:'',
                   html:`<div style="width:14px;height:14px;background:#FF3B3B;border-radius:50%;
@@ -346,7 +395,7 @@ export default function VolunteerPage() {
                   iconSize:[14, 14], iconAnchor:[7, 7]
                 })}
               >
-                <Popup>Victim: {MOCK_CASE.location}</Popup>
+                <Popup>Victim: {currentCase.location}</Popup>
               </Marker>
               
               <Marker
@@ -364,25 +413,16 @@ export default function VolunteerPage() {
           </div>
           
           <div style={{ ...STYLES.subText, textAlign:'center', color: '#e0e0e0' }}>
-            📍 {MOCK_CASE.location}
+            📍 {currentCase.location}
           </div>
           
-          <button onClick={handleResolved} style={STYLES.btnAccept}>✅ RESCUE COMPLETE</button>
-          <button onClick={handleFalseAlarm} style={STYLES.btnDecline}>🚩 FALSE ALARM</button>
+          <button onClick={() => resolveCase(currentCase?.id || currentCase?._id || '')} style={STYLES.btnAccept}>✅ RESCUE COMPLETE</button>
+          <button onClick={() => resolveCase(currentCase?.id || currentCase?._id || '')} style={STYLES.btnDecline}>🚩 FALSE ALARM</button>
         </div>
-      </div>
-    )
-  }
+      )
+    }
 
-  // ── RESOLVED ──────────────────────────────────────────────
-  return (
-    <div style={STYLES.page}>
-      <button
-        onClick={() => navigate('/')}
-        style={BACK_BTN_STYLE}
-      >
-        ← Command Centre
-      </button>
+    return (
       <div style={STYLES.card}>
         <div style={STYLES.logo}>⚡ CRISISNET VOLUNTEER</div>
         <div style={{ textAlign:'center', padding:'20px 0' }}>
@@ -391,6 +431,20 @@ export default function VolunteerPage() {
           <div style={{ ...STYLES.subText, marginTop: 8 }}>3 seconds mein wapas ready ho jaoge</div>
         </div>
       </div>
-    </div>
+    )
+  }
+
+  return (
+    <PhoneFrame>
+      <div style={STYLES.page}>
+        <button
+          onClick={() => navigate('/')}
+          style={BACK_BTN_STYLE}
+        >
+          ← Command Centre
+        </button>
+        {renderContent()}
+      </div>
+    </PhoneFrame>
   )
 }
