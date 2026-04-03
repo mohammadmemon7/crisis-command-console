@@ -66,7 +66,7 @@ app.get("/", (req, res) => {
   res.send("Backend is running 🚀");
 });
 
-app.use(require('./routes/reports'));
+app.use('/api/reports', require('./routes/reports'));
 app.use(require('./routes/sms'));
 app.use(require('./routes/volunteers'));
 app.use(require('./routes/test'));

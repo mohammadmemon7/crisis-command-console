@@ -7,8 +7,10 @@ const { findAndAssignVolunteer } = require('../services/matcher');
 const { sendSMS } = require('../services/twilio');
 const { getIO } = require('../socket');
 
-// POST /api/reports
-router.post('/api/reports', async (req, res) => {
+// POST /api/reports (mounted at /api/reports)
+router.post('/', async (req, res) => {
+    console.log("API HIT: POST /api/reports");
+    console.log("BODY:", req.body);
     try {
         const message = req.body.message || req.body.rawMessage;
         const { source, coordinates } = req.body;
@@ -67,12 +69,14 @@ router.post('/api/reports', async (req, res) => {
             volunteer: matchResult ? matchResult.volunteer.name : null
         });
     } catch (error) {
-        return res.status(500).json({ error: 'Server error', details: error.message });
+        console.error("Failed to save report:", error);
+        return res.status(500).json({ error: 'Failed to save report', details: error.message });
     }
 });
 
-// GET /api/reports
-router.get('/api/reports', async (req, res) => {
+// GET /api/reports (mounted at /api/reports)
+router.get('/', async (req, res) => {
+    console.log("API HIT: GET /api/reports");
     try {
         const reports = await Report.find({
             status: { $nin: ['resolved', 'false_alarm'] }
@@ -86,8 +90,9 @@ router.get('/api/reports', async (req, res) => {
     }
 });
 
-// PATCH /api/report/:id
-router.patch('/api/report/:id', async (req, res) => {
+// PATCH /api/reports/:id (mounted at /api/reports)
+router.patch('/:id', async (req, res) => {
+    console.log(`API HIT: PATCH /api/reports/${req.params.id}`);
     try {
         const { id } = req.params;
         const { status } = req.body;

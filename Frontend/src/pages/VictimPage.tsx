@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import socketService from '../services/socket'
 import { useReports } from '../context/ReportsContext'
+import { API_URL } from '../config'
 
 const MOCK_MODE = false
 // Set to false when real backend is connected
@@ -230,76 +231,47 @@ export default function VictimPage() {
     if (!message.trim()) return
     setState('submitting')
 
-    if (MOCK_MODE) {
-      const fakeId = Date.now().toString()
-      setReportId(fakeId)
-      
-      const mockReport = {
-        id: fakeId,
-        _id: fakeId,
-        rawMessage: message,
-        location: "Victim Report — " + message.slice(0, 20),
-        coordinates: {
-          lat: 19.076 + (Math.random() - 0.5) * 0.05,
-          lng: 72.877 + (Math.random() - 0.5) * 0.05
+    try {
+      const res = await fetch(`${API_URL}/api/reports`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-        urgency: 4 as const,
-        peopleCount: 1,
-        needs: ['rescue'],
-        status: 'pending' as const,
-        source: voiceUsed ? 'voice' as const : 'app' as const,
-        createdAt: new Date()
+        body: JSON.stringify({
+          rawMessage: message,
+          source: "app",
+        }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        console.error("Server error:", text);
+        throw new Error("Backend error");
       }
-      addReport(mockReport)
 
-      setTimeout(() => setState('waiting'), 2000)
-      setTimeout(() => {
-        setAssignedName('Ravi Kumar')
-        setAssignedEta('8')
-        setState('assigned')
-      }, 6000)
-      setTimeout(() => setState('resolved'), 15000)
-
-    } else {
-      try {
-        const response = await fetch(
-          `${import.meta.env.VITE_BACKEND_URL}/api/report`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              message,
-              source: voiceUsed ? 'voice' : 'app',
-              coordinates: {
-                lat: 19.076 + (Math.random() - 0.5) * 0.05,
-                lng: 72.877 + (Math.random() - 0.5) * 0.05
-              }
-            })
-          }
-        )
-
-        if (!response.ok) throw new Error('Backend error')
-
-        const data = await response.json()
-        
-        // FIX 4: Update structure parse
-        // Backend returns: { success: true, report: { _id, ... }, assigned, volunteer }
-        if (data.report && data.report._id) {
-          setReportId(data.report._id)
-          
-          if (data.assigned === true) {
-            setAssignedName(data.volunteer || 'Rajesh Patil')
-            setAssignedEta('8')
-            setState('assigned')
-          } else {
-            setState('waiting') 
-          }
+      const data = await res.json();
+      console.log("✅ Report saved:", data);
+      
+      if (data.report && data.report._id) {
+        setReportId(data.report._id)
+        if (data.assigned === true) {
+          setAssignedName(data.volunteer || 'Rajesh Patil')
+          setAssignedEta('8')
+          setState('assigned')
+        } else {
+          setState('waiting') 
         }
-
-      } catch (err) {
-        console.error('Submit failed:', err)
-        setState('idle')
+      } else if (data._id) {
+        setReportId(data._id)
+        setState('waiting')
       }
+
+      alert("Report submitted successfully");
+
+    } catch (err) {
+      console.error("Submit failed:", err);
+      alert("Submission failed");
+      setState('idle');
     }
   }
 
