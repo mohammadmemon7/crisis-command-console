@@ -1,17 +1,45 @@
-import { Zap } from "lucide-react";
-import Map from "../Map";
+import Map from '../Map'
+import { useReports } from '../../context/ReportsContext'
 
 export function MapArea() {
+  const { stats } = useReports()
+
   return (
     <main className="relative flex-1 overflow-hidden bg-[#111111]">
+
+      {/* Stats overlay — top right */}
+      <div style={{
+        position: 'absolute',
+        top: '12px',
+        right: '12px',
+        zIndex: 500,
+        background: 'rgba(10,10,18,0.85)',
+        backdropFilter: 'blur(6px)',
+        border: '1px solid rgba(255,255,255,0.08)',
+        borderRadius: '8px',
+        padding: '8px 14px',
+        display: 'flex',
+        gap: '16px',
+        alignItems: 'center',
+        fontFamily: 'var(--font-mono)',
+        fontSize: '11px',
+        fontWeight: 600,
+        letterSpacing: '0.5px',
+      }}>
+        <span>
+          <span style={{ color: '#888' }}>ACTIVE </span>
+          <span style={{ color: '#FF3B3B' }}>{stats.active}</span>
+        </span>
+        <span style={{ color: 'rgba(255,255,255,0.15)' }}>|</span>
+        <span>
+          <span style={{ color: '#888' }}>RESOLVED </span>
+          <span style={{ color: '#00C851' }}>{stats.resolved}</span>
+        </span>
+      </div>
+
       <div className="h-full w-full">
         <Map />
       </div>
-
-      <button className="absolute right-5 top-5 z-[500] flex items-center gap-2 rounded-lg bg-destructive px-5 py-2.5 text-sm font-bold uppercase tracking-wider text-destructive-foreground shadow-lg shadow-destructive/25 transition-all hover:brightness-110 hover:shadow-destructive/40 active:scale-[0.97]">
-        <Zap className="h-4 w-4" />
-        Inject Chaos
-      </button>
     </main>
-  );
+  )
 }
