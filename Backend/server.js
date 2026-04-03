@@ -66,10 +66,10 @@ app.get("/", (req, res) => {
   res.send("Backend is running 🚀");
 });
 
-app.use('/api', require('./routes/reports'));
-app.use('/api', require('./routes/sms'));
-app.use('/api', require('./routes/volunteers'));
-app.use('/api', require('./routes/test'));
+app.use(require('./routes/reports'));
+app.use(require('./routes/sms'));
+app.use(require('./routes/volunteers'));
+app.use(require('./routes/test'));
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log('CrisisNet backend running on port', PORT));
