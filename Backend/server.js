@@ -53,85 +53,80 @@ const Report = require('./models/Report');
 const Volunteer = require('./models/Volunteer');
 const Stats = require('./models/Stats');
 
+function getDistance(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) *
+    Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) ** 2;
+
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => {
     console.log('MongoDB connected');
     // require('./services/simulation').startSimulation(); // Disabled in favor of strict engines below
 
-    // 🔥 STEP 3: ASSIGNMENT ENGINE (RUN EVERY 2s)
+    // 🔥 STEP 2: STRICT ASSIGNMENT ENGINE (NEAREST ONLY)
     setInterval(async () => {
       try {
-        const pendingReports = await Report.find({ status: "pending" });
-        const freeVolunteers = await Volunteer.find({ status: "free" });
+        const reports = await Report.find({ status: "pending" });
+        const volunteers = await Volunteer.find({ status: "free" });
 
-        for (let report of pendingReports) {
-          if (freeVolunteers.length === 0) break;
+        for (let report of reports) {
+          let nearest = null;
+          let minDist = Infinity;
 
-          const volunteer = freeVolunteers.shift();
+          for (let vol of volunteers) {
+            const dist = getDistance(
+              report.coordinates.lat,
+              report.coordinates.lng,
+              vol.coordinates.lat,
+              vol.coordinates.lng
+            );
 
-          report.status = "assigned";
-          report.assignedTo = volunteer._id;
-          report.startedAt = new Date();
+            if (dist < minDist) {
+              minDist = dist;
+              nearest = vol;
+            }
+          }
 
-          volunteer.status = "busy";
-          volunteer.currentTask = report._id;
+          if (nearest) {
+            report.status = "assigned";
+            report.assignedTo = nearest._id;
+            report.startedAt = new Date();
 
-          await report.save();
-          await volunteer.save();
-          console.log(`Assigned report ${report._id} to volunteer ${volunteer.name}`);
+            nearest.status = "busy";
+            nearest.currentTask = report._id;
+
+            await report.save();
+            await nearest.save();
+            
+            // Remove assigned volunteer from local list for this tick
+            volunteers.splice(volunteers.indexOf(nearest), 1);
+            console.log(`Assigned report ${report._id} to NEAREST volunteer ${nearest.name}`);
+          }
         }
       } catch (err) {
         console.error("Assignment Engine Error:", err);
       }
     }, 2000);
 
-    // 🔥 STEP 4: 30-SECOND RESOLUTION ENGINE (CRITICAL FIX)
+    // 🔥 STEP 3: MOVEMENT ENGINE (CRITICAL FIX - BUSY ONLY)
     setInterval(async () => {
       try {
-        const reports = await Report.find({ status: "assigned" }).populate("assignedTo");
+        const busyVolunteers = await Volunteer.find({ status: "busy" }).populate("currentTask");
 
-        for (let report of reports) {
-          const now = new Date();
-          const started = new Date(report.startedAt);
-          const seconds = (now - started) / 1000;
+        for (let vol of busyVolunteers) {
+          const report = vol.currentTask;
+          if (!report || !vol.coordinates || !report.coordinates) continue;
 
-          if (seconds >= 30) {
-            const volunteer = report.assignedTo;
-
-            // Update stats
-            let stats = await Stats.findOne();
-            if (!stats) stats = await Stats.create({});
-            stats.totalResolved += 1;
-            stats.totalResponseTime += seconds;
-            await stats.save();
-
-            // Free volunteer
-            if (volunteer) {
-              volunteer.status = "free";
-              volunteer.currentTask = null;
-              await volunteer.save();
-            }
-
-            // Delete report
-            await Report.findByIdAndDelete(report._id);
-            console.log(`Resolved and deleted report ${report._id}, freed volunteer ${volunteer ? volunteer.name : 'unknown'}`);
-          }
-        }
-      } catch (err) {
-        console.error("Resolution Engine Error:", err);
-      }
-    }, 2000);
-
-    // 🔥 STEP 5: VOLUNTEER MOVEMENT ENGINE
-    setInterval(async () => {
-      try {
-        const reports = await Report.find({ status: "assigned" }).populate("assignedTo");
-
-        for (let report of reports) {
-          const vol = report.assignedTo;
-          if (!vol || !vol.coordinates || !report.coordinates) continue;
-
-          // Move 10% closer every tick
+          // Move 10% closer toward victim
           const newLat = vol.coordinates.lat + (report.coordinates.lat - vol.coordinates.lat) * 0.1;
           const newLng = vol.coordinates.lng + (report.coordinates.lng - vol.coordinates.lng) * 0.1;
 
@@ -140,6 +135,41 @@ mongoose.connect(process.env.MONGODB_URI)
         }
       } catch (err) {
         console.error("Movement Engine Error:", err);
+      }
+    }, 2000);
+
+    // 🔥 STEP 4: STRICT 30-SECOND RULE (NO EXCEPTION)
+    setInterval(async () => {
+      try {
+        const reports = await Report.find({ status: "assigned" });
+
+        for (let report of reports) {
+          const now = new Date();
+          const started = new Date(report.startedAt);
+          const seconds = (now - started) / 1000;
+
+          if (seconds >= 30) {
+            const vol = await Volunteer.findById(report.assignedTo);
+
+            // Update global stats
+            let stats = await Stats.findOne();
+            if (!stats) stats = await Stats.create({});
+            stats.totalResolved += 1;
+            stats.totalResponseTime += seconds;
+            await stats.save();
+
+            if (vol) {
+              vol.status = "free";
+              vol.currentTask = null;
+              await vol.save();
+            }
+
+            await Report.findByIdAndDelete(report._id);
+            console.log(`Resolved and deleted report ${report._id}, freed volunteer ${vol ? vol.name : 'unknown'}`);
+          }
+        }
+      } catch (err) {
+        console.error("Resolution Engine Error:", err);
       }
     }, 2000);
   })
