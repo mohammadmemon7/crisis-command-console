@@ -1,15 +1,19 @@
 const Report = require('../models/Report');
 
-const demoNames = ["Rahul", "Amit", "Priya", "Sneha", "Arjun", "Neha"];
+const demoNames = ['Rahul', 'Amit', 'Priya', 'Sneha', 'Arjun', 'Neha'];
 
 const createReport = async (data) => {
   const report = new Report({
-    name: demoNames[Math.floor(Math.random() * demoNames.length)],
+    name: data.name || demoNames[Math.floor(Math.random() * demoNames.length)],
     rawMessage: data.rawMessage,
+    location: data.location || '',
     coordinates: data.coordinates,
-    priority: Math.floor(Math.random() * 5) + 1, // 1–5 RANDOM
-    status: "pending",
-    createdAt: new Date()
+    priority: data.priority != null ? data.priority : Math.floor(Math.random() * 5) + 1,
+    peopleCount: data.peopleCount || 1,
+    needs: data.needs && data.needs.length ? data.needs : ['rescue'],
+    source: data.source || 'app',
+    senderPhone: data.senderPhone || null,
+    status: 'pending'
   });
 
   return await report.save();

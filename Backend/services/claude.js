@@ -15,6 +15,13 @@ Never return anything other than this JSON object.
 Never add explanation or markdown or code blocks.`;
 
 async function classifyMessage(text) {
+  const fallback = { 
+    location: 'Unknown', 
+    urgency: 3, 
+    peopleCount: 1, 
+    needs: ['rescue'] 
+  };
+
   try {
     const fullPrompt = SYSTEM_PROMPT + '\n\nMessage: ' + text;
 
@@ -27,24 +34,45 @@ async function classifyMessage(text) {
       { headers: { 'Content-Type': 'application/json' }, timeout: 8000 }
     );
 
-    const rawText =
-      response.data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
+    let rawText = response.data.candidates?.[0]?.content?.parts?.[0]?.text || "";
     if (!rawText) throw new Error("Empty response from Gemini");
 
-    const cleaned = rawText.replace(/```json|```/g, '').trim();
+    // 1. Clean the response before parsing
+    rawText = rawText.replace(/```json|```/g, '').trim();
+    
+    // Find first { and last } to extract only the JSON part
+    const start = rawText.indexOf('{');
+    const end = rawText.lastIndexOf('}');
+    
+    if (start === -1 || end === -1) {
+      console.warn('Gemini response did not contain a valid JSON object');
+      return fallback;
+    }
+    
+    const jsonStr = rawText.slice(start, end + 1);
 
-    return JSON.parse(cleaned);
+    // 2. Wrap JSON.parse in try/catch
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonStr);
+    } catch (e) {
+      console.error('JSON Parse Error from Gemini response:', e.message);
+      return fallback;
+    }
+
+    // 3. Validate the parsed object has required fields
+    const result = {
+      location: typeof parsed.location === 'string' ? parsed.location : fallback.location,
+      urgency: (typeof parsed.urgency === 'number' && parsed.urgency >= 1 && parsed.urgency <= 5) ? parsed.urgency : fallback.urgency,
+      peopleCount: typeof parsed.peopleCount === 'number' ? parsed.peopleCount : fallback.peopleCount,
+      needs: Array.isArray(parsed.needs) ? parsed.needs : fallback.needs
+    };
+
+    return result;
 
   } catch (error) {
     console.error('Gemini classification error:', error.message);
-
-    return {
-      location: 'Unknown',
-      urgency: 3,
-      peopleCount: 1,
-      needs: ['rescue']
-    };
+    return fallback;
   }
 }
 

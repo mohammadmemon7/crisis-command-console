@@ -44,10 +44,13 @@ app.options("*", cors(corsOptions));
 
 app.use(compression());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: false }));
 
 const server = http.createServer(app);
-socketManager.init(server);
+const io = socketManager.init(server);
+
+const { router: smsRouter, setIo } = require('./routes/sms');
+setIo(io);
 
 const Report = require('./models/Report');
 const Volunteer = require('./models/Volunteer');
@@ -102,6 +105,7 @@ mongoose.connect(process.env.MONGODB_URI)
             report.startedAt = new Date();
 
             nearest.status = "busy";
+            nearest.isAvailable = false;
             nearest.currentTask = report._id;
 
             await report.save();
@@ -160,6 +164,7 @@ mongoose.connect(process.env.MONGODB_URI)
 
             if (vol) {
               vol.status = "free";
+              vol.isAvailable = true;
               vol.currentTask = null;
               await vol.save();
             }
@@ -177,7 +182,17 @@ mongoose.connect(process.env.MONGODB_URI)
 
 // 10) Add a /health route if missing
 app.get('/health', (req, res) => {
-  res.json({ ok: true, service: "crisis-command-console-backend" });
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    services: {
+      mongodb: mongoose.connection.readyState === 1
+               ? 'connected' : 'disconnected',
+      twilio: !!process.env.TWILIO_ACCOUNT_SID,
+      gemini: !!process.env.GEMINI_API_KEY,
+      opencage: !!process.env.OPENCAGE_API_KEY
+    }
+  });
 });
 
 app.get('/api/health', (req, res) => {
@@ -190,7 +205,7 @@ app.get("/", (req, res) => {
 
 app.use('/api/reports', require('./routes/reports'));
 app.use(require('./routes/stats'));
-app.use(require('./routes/sms'));
+app.use('/api', smsRouter);
 app.use(require('./routes/volunteers'));
 app.use(require('./routes/test'));
 

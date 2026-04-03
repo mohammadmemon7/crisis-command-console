@@ -44,7 +44,8 @@ router.post('/', async (req, res) => {
       location: locationLabel,
       source: req.body.source || 'app',
       needs,
-      peopleCount: aiResult.peopleCount || 1
+      peopleCount: aiResult.peopleCount || 1,
+      priority: aiResult.urgency != null ? aiResult.urgency : 3
     });
 
     const reportOut = await Report.findById(savedReport._id)
