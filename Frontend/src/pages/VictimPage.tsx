@@ -149,6 +149,7 @@ export default function VictimPage() {
   
   const [state, setState] = useState<VictimState>('idle')
   const [message, setMessage] = useState('')
+  const [reporterName, setReporterName] = useState('')
   const [countdown, setCountdown] = useState(120)
   const [reportId, setReportId] = useState<string | null>(null)
   const [assignedName, setAssignedName] = useState('Ramesh Patil')
@@ -258,6 +259,7 @@ export default function VictimPage() {
         lat,
         lng,
         location: "User Location",
+        name: reporterName.trim() || undefined,
       }),
     })
 
@@ -367,6 +369,14 @@ export default function VictimPage() {
           <div style={STYLES.logo}>⚡ CRISISNET</div>
 
           <div>
+            <div style={{ ...STYLES.label, marginBottom: '6px' }}>Aapka naam (optional)</div>
+            <input
+              type="text"
+              style={{ ...STYLES.textarea, minHeight: '44px', marginBottom: '10px' }}
+              placeholder="Naam..."
+              value={reporterName}
+              onChange={e => setReporterName(e.target.value)}
+            />
             <div style={{ ...STYLES.label, marginBottom: '6px' }}>Apni situation batao</div>
             <textarea
               style={STYLES.textarea}
@@ -505,6 +515,7 @@ export default function VictimPage() {
           onClick={() => {
             setState('idle')
             setMessage('')
+            setReporterName('')
             setReportId(null)
           }}
           style={STYLES.btnGreen}

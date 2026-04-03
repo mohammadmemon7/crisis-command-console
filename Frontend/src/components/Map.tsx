@@ -314,10 +314,10 @@ const Map = () => {
         ))}
 
         {volunteers.filter(volHasLocation).map(vol => {
-          const busy = vol.isAvailable === false
+          const busy = vol.status === 'busy' || vol.isAvailable === false
           const volIcon = L.divIcon({
             className: '',
-            html: `<div style="position:relative;display:inline-block;"><div style="width:26px;height:26px;border-radius:50%;background:${busy ? '#2563EB' : '#22C55E'};border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:bold;">V</div>${busy ? `<span style="position:absolute;top:-6px;right:-12px;background:#1D4ED8;color:white;font-size:7px;font-weight:bold;padding:1px 3px;border-radius:3px;white-space:nowrap;z-index:10;">BUSY</span>` : `<span style="position:absolute;top:-6px;right:-12px;background:#15803D;color:white;font-size:7px;font-weight:bold;padding:1px 3px;border-radius:3px;white-space:nowrap;z-index:10;">FREE</span>`}</div>`,
+            html: `<div style="position:relative;display:inline-block;"><div style="width:26px;height:26px;border-radius:50%;background:${busy ? '#F97316' : '#3B82F6'};border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:bold;">V</div>${busy ? `<span style="position:absolute;top:-6px;right:-12px;background:#C2410C;color:white;font-size:7px;font-weight:bold;padding:1px 3px;border-radius:3px;white-space:nowrap;z-index:10;">BUSY</span>` : `<span style="position:absolute;top:-6px;right:-12px;background:#1D4ED8;color:white;font-size:7px;font-weight:bold;padding:1px 3px;border-radius:3px;white-space:nowrap;z-index:10;">FREE</span>`}</div>`,
             iconSize: [26, 26], iconAnchor: [13, 13],
           })
           return (

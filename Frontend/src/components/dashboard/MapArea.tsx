@@ -35,6 +35,11 @@ export function MapArea() {
           <span style={{ color: '#888' }}>RESOLVED </span>
           <span style={{ color: '#00C851' }}>{stats.resolved}</span>
         </span>
+        <span style={{ color: 'rgba(255,255,255,0.15)' }}>|</span>
+        <span>
+          <span style={{ color: '#888' }}>AVG </span>
+          <span style={{ color: '#FF8C00' }}>{Number(stats.avgResponseTimeMinutes).toFixed(2)}m</span>
+        </span>
       </div>
 
       <div className="h-full w-full">

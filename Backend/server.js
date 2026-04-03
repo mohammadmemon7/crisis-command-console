@@ -50,7 +50,10 @@ const server = http.createServer(app);
 socketManager.init(server);
 
 mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('MongoDB connected'))
+  .then(() => {
+    console.log('MongoDB connected');
+    require('./services/simulation').startSimulation();
+  })
   .catch((err) => { console.error('MongoDB error:', err); process.exit(1); });
 
 // 10) Add a /health route if missing
@@ -67,6 +70,7 @@ app.get("/", (req, res) => {
 });
 
 app.use('/api/reports', require('./routes/reports'));
+app.use(require('./routes/stats'));
 app.use(require('./routes/sms'));
 app.use(require('./routes/volunteers'));
 app.use(require('./routes/test'));

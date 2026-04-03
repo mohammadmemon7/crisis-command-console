@@ -11,6 +11,7 @@ interface Stats {
   active: number
   resolved: number
   volunteersDeployed: number
+  avgResponseTimeMinutes: number
 }
 
 export type ApiVolunteer = {
@@ -20,6 +21,8 @@ export type ApiVolunteer = {
   skills?: string[]
   area?: string
   location?: { lat: number; lng: number }
+  homeLocation?: { lat: number; lng: number }
+  status?: 'free' | 'busy'
   isAvailable?: boolean
   activeCase?: string | null
 }
@@ -90,17 +93,20 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
     active: 0,
     resolved: 0,
     volunteersDeployed: 0,
+    avgResponseTimeMinutes: 0,
   })
 
   const refreshReports = useCallback(async () => {
     try {
-      const [repRes, volRes] = await Promise.all([
+      const [repRes, volRes, statsRes] = await Promise.all([
         fetch(`${API_URL}/api/reports`),
-        fetch(`${API_URL}/api/volunteers`)
+        fetch(`${API_URL}/api/volunteers`),
+        fetch(`${API_URL}/api/stats`)
       ])
 
       const repJson = await repRes.json()
       const volJson = await volRes.json()
+      const statsJson = await statsRes.json().catch(() => ({}))
       const initialReports = repJson.reports
       const initialVolunteers = volJson.volunteers || []
       console.log('Reports:', (initialReports || []).length)
@@ -109,17 +115,24 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
       setReports(initialReports || [])
       setVolunteers(initialVolunteers)
 
-      const activeCount = (initialReports || []).filter((r: any) =>
-        r.status === 'pending' || r.status === 'assigned'
-      ).length
-      const resolvedCount = (initialReports || []).filter((r: any) => r.status === 'resolved').length
-      const deployedCount = initialVolunteers.filter((v: any) => !v.isAvailable).length
-
-      setStats({
-        active: activeCount,
-        resolved: resolvedCount,
-        volunteersDeployed: deployedCount
-      })
+      if (statsJson.success) {
+        setStats({
+          active: statsJson.active ?? 0,
+          resolved: statsJson.totalResolvedLifetime ?? statsJson.resolved ?? 0,
+          volunteersDeployed: statsJson.volunteersDeployed ?? 0,
+          avgResponseTimeMinutes: statsJson.avgResponseTimeMinutes ?? 0
+        })
+      } else {
+        const deployedCount = initialVolunteers.filter((v: any) => !v.isAvailable).length
+        setStats({
+          active: (initialReports || []).filter((r: any) =>
+            r.status === 'pending' || r.status === 'assigned'
+          ).length,
+          resolved: 0,
+          volunteersDeployed: deployedCount,
+          avgResponseTimeMinutes: 0
+        })
+      }
     } catch (err) {
       console.error('Failed to load initial data:', err)
       if (MOCK_MODE) {
@@ -198,11 +211,26 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    if (!MOCK_MODE) {
+      const id = window.setInterval(() => {
+        refreshReports()
+      }, 2000)
+      return () => clearInterval(id)
+    }
+  }, [refreshReports])
+
+  useEffect(() => {
     socketService.on('newReport', refreshReports)
     socketService.on('reportUpdated', refreshReports)
+    socketService.on('reportDeleted', refreshReports)
+    socketService.on('statsUpdated', refreshReports)
+    socketService.on('simulationTick', refreshReports)
     return () => {
       socketService.off('newReport', refreshReports)
       socketService.off('reportUpdated', refreshReports)
+      socketService.off('reportDeleted', refreshReports)
+      socketService.off('statsUpdated', refreshReports)
+      socketService.off('simulationTick', refreshReports)
     }
   }, [refreshReports])
 

@@ -11,6 +11,11 @@ const volunteerSchema = new mongoose.Schema({
     lat: { type: Number, required: true },
     lng: { type: Number, required: true }
   },
+  homeLocation: {
+    lat: { type: Number },
+    lng: { type: Number }
+  },
+  status:        { type: String, enum: ['free', 'busy'], default: 'free' },
   area:          { type: String },
   isAvailable:   { type: Boolean, default: true },
   activeCase:    { type: mongoose.Schema.Types.ObjectId, ref: 'Report', default: null },

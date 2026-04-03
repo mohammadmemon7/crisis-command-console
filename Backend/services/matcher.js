@@ -45,11 +45,16 @@ async function findAndAssignVolunteer(report) {
     const nearest = candidates[0];
     if (!nearest || nearest.distance === Infinity) return null;
 
-    // Step 8: Atomic MongoDB update
-    await Volunteer.findByIdAndUpdate(nearest._id, {
-      isAvailable: false,
-      activeCase: report._id
-    });
+    const volDoc = await Volunteer.findById(nearest._id);
+    if (!volDoc) return null;
+
+    if (volDoc.homeLocation == null || volDoc.homeLocation.lat == null) {
+      volDoc.homeLocation = { lat: volDoc.location.lat, lng: volDoc.location.lng };
+    }
+    volDoc.isAvailable = false;
+    volDoc.status = 'busy';
+    volDoc.activeCase = report._id;
+    await volDoc.save();
 
     await Report.findByIdAndUpdate(report._id, {
       status: 'assigned',
@@ -58,7 +63,7 @@ async function findAndAssignVolunteer(report) {
 
     // Step 9: Return object
     return {
-      volunteer: nearest,
+      volunteer: volDoc,
       distance: nearest.distance.toFixed(2)
     };
   } catch (error) {

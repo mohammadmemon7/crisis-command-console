@@ -13,7 +13,7 @@ router.post('/', async (req, res) => {
     console.log("📦 DATA:", req.body);
     try {
         const message = req.body.message || req.body.rawMessage;
-        const { source, coordinates: coordsBody, location: bodyLocation, lat: bodyLat, lng: bodyLng } = req.body;
+        const { source, coordinates: coordsBody, location: bodyLocation, lat: bodyLat, lng: bodyLng, name: bodyName } = req.body;
 
         console.log("Incoming report:", req.body);
 
@@ -45,8 +45,10 @@ router.post('/', async (req, res) => {
 
         // Step 3 — Create new Report
         const needs = (aiResult.needs && aiResult.needs.length) ? aiResult.needs : ['rescue'];
+        const reporterName = (typeof bodyName === 'string' && bodyName.trim()) ? bodyName.trim() : 'Anonymous User';
 
         const newReport = new Report({
+            name: reporterName,
             rawMessage: message,
             location: locationLabel,
             ...(coordinates ? { coordinates } : {}),
@@ -64,7 +66,7 @@ router.post('/', async (req, res) => {
         const matchResult = await findAndAssignVolunteer(savedReport);
 
         const reportOut = await Report.findById(savedReport._id)
-            .populate('assignedTo', 'name phone location')
+            .populate('assignedTo', 'name phone location status homeLocation isAvailable')
             .lean();
 
         // Step 6 — If matchResult exists
@@ -104,7 +106,7 @@ router.get('/', async (req, res) => {
             status: { $nin: ['resolved', 'false_alarm'] }
         })
         .sort({ createdAt: -1 })
-        .populate('assignedTo', 'name phone');
+        .populate('assignedTo', 'name phone location status homeLocation isAvailable');
 
         return res.status(200).json({ success: true, reports });
     } catch (error) {
@@ -127,10 +129,23 @@ router.patch('/:id', async (req, res) => {
             update.assignedTo = null;
         }
 
-        const updatedReport = await Report.findByIdAndUpdate(id, update, { new: true });
+        let updatedReport = await Report.findByIdAndUpdate(id, update, { new: true });
         
         if (!updatedReport) {
             return res.status(404).json({ error: 'Report not found' });
+        }
+
+        if (status === 'assigned' && volunteerId) {
+            const vol = await Volunteer.findById(volunteerId);
+            if (vol) {
+                if (vol.homeLocation == null || vol.homeLocation.lat == null) {
+                    vol.homeLocation = { lat: vol.location.lat, lng: vol.location.lng };
+                }
+                vol.isAvailable = false;
+                vol.status = 'busy';
+                vol.activeCase = id;
+                await vol.save();
+            }
         }
 
         if (status === 'resolved') {
@@ -141,17 +156,35 @@ router.patch('/:id', async (req, res) => {
             
             if (volunteer) {
                 volunteer.isAvailable = true;
+                volunteer.status = 'free';
                 volunteer.activeCase = null;
                 volunteer.totalResolved = (volunteer.totalResolved || 0) + 1;
+                if (volunteer.homeLocation != null && volunteer.homeLocation.lat != null) {
+                    volunteer.location.lat = volunteer.homeLocation.lat;
+                    volunteer.location.lng = volunteer.homeLocation.lng;
+                }
                 await volunteer.save();
             }
+
+            const mins = (Date.now() - new Date(updatedReport.createdAt).getTime()) / 60000;
+            const ResolutionLog = require('../models/ResolutionLog');
+            await ResolutionLog.create({ responseTimeMinutes: mins });
+            await Report.findByIdAndDelete(id);
+            getIO().emit('reportDeleted', { reportId: id });
+            getIO().emit('statsUpdated');
+            return res.status(200).json({ success: true, report: null, deleted: true });
         }
 
         if (status === 'false_alarm') {
             const volunteer = await Volunteer.findOne({ activeCase: id });
             if (volunteer) {
                 volunteer.isAvailable = true;
+                volunteer.status = 'free';
                 volunteer.activeCase = null;
+                if (volunteer.homeLocation != null && volunteer.homeLocation.lat != null) {
+                    volunteer.location.lat = volunteer.homeLocation.lat;
+                    volunteer.location.lng = volunteer.homeLocation.lng;
+                }
                 await volunteer.save();
             }
         }

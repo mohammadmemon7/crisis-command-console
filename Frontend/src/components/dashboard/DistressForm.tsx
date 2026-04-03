@@ -5,6 +5,7 @@ import { API_URL } from "../../config";
 
 export function DistressForm() {
   const { refreshReports } = useReports();
+  const [reporterName, setReporterName] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -64,6 +65,7 @@ export function DistressForm() {
           lat,
           lng,
           location: "User Location",
+          name: reporterName.trim() || undefined,
         }),
       });
       console.log("📡 Response status:", res.status);
@@ -77,6 +79,7 @@ export function DistressForm() {
       await refreshReports();
       setSuccess(true);
       setMessage("");
+      setReporterName("");
       setTimeout(() => setSuccess(false), 2000);
     } catch (err) {
       console.error("❌ Submit failed:", err);
@@ -92,6 +95,15 @@ export function DistressForm() {
         style={{ fontFamily: "var(--font-mono)" }}>
         Distress Signal
       </label>
+
+      <input
+        type="text"
+        value={reporterName}
+        onChange={(e) => setReporterName(e.target.value)}
+        placeholder="Your name (optional)"
+        className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+        style={{ fontFamily: "var(--font-mono)" }}
+      />
       
       <div className="relative">
         <textarea

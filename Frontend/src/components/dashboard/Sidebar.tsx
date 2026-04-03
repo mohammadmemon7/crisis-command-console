@@ -3,8 +3,9 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { AlertTriangle, CheckCircle, Users, Clock, ChevronDown, ChevronUp, Zap } from 'lucide-react'
 import { StatCard } from './StatCard'
 import { DistressForm } from './DistressForm'
-import { MOCK_VOLUNTEERS } from '../../mock/mockData'
 import socketService from '../../services/socket'
+import { MOCK_VOLUNTEERS } from '../../mock/mockData'
+import type { ApiVolunteer } from '../../context/ReportsContext'
 import type { Report } from '../../mock/mockData'
 import { useReports } from '../../context/ReportsContext'
 
@@ -37,7 +38,19 @@ function getMinutesAgo(date: Date): number {
 export function Sidebar() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { reports, stats, injectChaos } = useReports()
+  const { reports, stats, volunteers, injectChaos } = useReports()
+
+  const volunteerRows: ApiVolunteer[] = MOCK_MODE
+    ? MOCK_VOLUNTEERS.map(v => ({
+        _id: v.id,
+        name: v.name,
+        area: v.area,
+        skills: v.skills,
+        location: v.location,
+        isAvailable: v.isAvailable,
+        status: v.isAvailable ? 'free' : 'busy',
+      }))
+    : volunteers
   
   // LIVE clock state
   const [clock, setClock] = useState<string>('')
@@ -326,7 +339,7 @@ export function Sidebar() {
         <StatCard icon={AlertTriangle} label="Active Cases"        value={stats.active}       accent="red"    />
         <StatCard icon={CheckCircle}   label="Resolved Cases"      value={stats.resolved}      accent="green"  />
         <StatCard icon={Users}         label="Volunteers Deployed" value={stats.volunteersDeployed} accent="blue"   />
-        <StatCard icon={Clock}         label="Avg Response"        value="8.3 min"  accent="orange" />
+        <StatCard icon={Clock}         label="Avg Response"        value={`${Number(stats.avgResponseTimeMinutes).toFixed(2)} min`}  accent="orange" />
       </div>
 
       <div className="h-px bg-border" />
@@ -342,7 +355,7 @@ export function Sidebar() {
         <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
           {recentReports.map(report => (
             <div
-              key={report.id}
+              key={String((report as any)._id || report.id)}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -366,6 +379,15 @@ export function Sidebar() {
                   fontSize: '11px',
                   fontWeight: 600,
                   color: '#e0e0e0',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}>
+                  {(report as any).name || 'Anonymous User'}
+                </div>
+                <div style={{
+                  fontSize: '10px',
+                  color: '#b0b0b0',
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -431,9 +453,9 @@ export function Sidebar() {
 
         {volunteersOpen && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {MOCK_VOLUNTEERS.slice(0, 4).map(vol => (
+            {volunteerRows.slice(0, 12).map(vol => (
               <div
-                key={vol.id}
+                key={vol._id}
                 style={{
                   display: 'flex',
                   alignItems: 'flex-start',
@@ -447,7 +469,7 @@ export function Sidebar() {
                   width: '8px',
                   height: '8px',
                   borderRadius: '50%',
-                  background: vol.isAvailable ? '#00C851' : '#FF3B3B',
+                  background: (vol.status === 'busy' || vol.isAvailable === false) ? '#F97316' : '#00C851',
                   marginTop: '4px',
                   flexShrink: 0,
                 }} />
@@ -471,7 +493,7 @@ export function Sidebar() {
 
                   {/* Skills badges */}
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
-                    {vol.skills.map(skill => (
+                    {(vol.skills || []).map(skill => (
                       <span key={skill} style={{
                         padding: '1px 5px',
                         borderRadius: '4px',
