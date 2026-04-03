@@ -46,6 +46,10 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date(), mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' });
 });
 
+app.get("/", (req, res) => {
+  res.send("Backend is running 🚀");
+});
+
 app.use('/api', require('./routes/reports'));
 app.use('/api', require('./routes/sms'));
 app.use('/api', require('./routes/volunteers'));
