@@ -58,7 +58,8 @@ async function findAndAssignVolunteer(report) {
 
     await Report.findByIdAndUpdate(report._id, {
       status: 'assigned',
-      assignedTo: nearest._id
+      assignedTo: nearest._id,
+      startedAt: new Date()
     });
 
     // Step 9: Return object

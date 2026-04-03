@@ -1,6 +1,7 @@
 export interface Report {
   id: string;
   name?: string;
+  priority?: number;
   location: string;
   coordinates: { lat: number; lng: number };
   urgency: 1 | 2 | 3 | 4 | 5;

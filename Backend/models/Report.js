@@ -9,6 +9,7 @@ const reportSchema = new mongoose.Schema({
     lng: { type: Number }
   },
   urgency:     { type: Number, min: 1, max: 5, default: 3 },
+  priority:    { type: Number, min: 1, max: 5, default: 3, required: true },
   peopleCount: { type: Number, default: 1 },
   needs:       { type: [String], enum: ['rescue','medical','food','water','shelter','boat','vehicle'] },
   status:      { 
@@ -23,6 +24,7 @@ const reportSchema = new mongoose.Schema({
   },
   reportCount: { type: Number, default: 1 },
   assignedTo:  { type: mongoose.Schema.Types.ObjectId, ref: 'Volunteer', default: null },
+  startedAt:   { type: Date, default: null },
   resolvedAt:  { type: Date, default: null }
 }, { timestamps: true });
 

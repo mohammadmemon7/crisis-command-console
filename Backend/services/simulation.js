@@ -3,16 +3,7 @@ const Volunteer = require('../models/Volunteer');
 const ResolutionLog = require('../models/ResolutionLog');
 const { getIO } = require('../socket');
 
-function haversineKm(lat1, lng1, lat2, lng2) {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) *
-    Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
+const TASK_SECONDS = 30;
 
 async function movementTick() {
   try {
@@ -24,8 +15,8 @@ async function movementTick() {
       if (!vol.location || vol.location.lat == null) continue;
       const tlat = report.coordinates.lat;
       const tlng = report.coordinates.lng;
-      vol.location.lat += (tlat - vol.location.lat) * 0.2;
-      vol.location.lng += (tlng - vol.location.lng) * 0.2;
+      vol.location.lat += (tlat - vol.location.lat) * 0.15;
+      vol.location.lng += (tlng - vol.location.lng) * 0.15;
       await vol.save();
     }
     if (io && reports.length) io.emit('simulationTick', { type: 'movement' });
@@ -38,39 +29,41 @@ async function resolveTick() {
   try {
     const reports = await Report.find({ status: 'assigned' }).populate('assignedTo');
     const io = getIO();
+    const now = Date.now();
+
     for (const report of reports) {
       const vol = report.assignedTo;
-      if (!vol || report.coordinates?.lat == null || report.coordinates?.lng == null) continue;
-      if (!vol.location || vol.location.lat == null) continue;
+      if (!vol) continue;
 
-      const dist = haversineKm(
-        report.coordinates.lat,
-        report.coordinates.lng,
-        vol.location.lat,
-        vol.location.lng
-      );
+      const started = report.startedAt
+        ? new Date(report.startedAt).getTime()
+        : new Date(report.createdAt).getTime();
+      const diffSec = (now - started) / 1000;
 
-      if (dist < 0.1) {
-        const mins = (Date.now() - new Date(report.createdAt).getTime()) / 60000;
-        await ResolutionLog.create({ responseTimeMinutes: mins });
+      if (diffSec < TASK_SECONDS) continue;
 
-        vol.isAvailable = true;
-        vol.status = 'free';
-        vol.activeCase = null;
-        if (vol.homeLocation != null && vol.homeLocation.lat != null && vol.homeLocation.lng != null) {
-          vol.location.lat = vol.homeLocation.lat;
-          vol.location.lng = vol.homeLocation.lng;
+      const mins = (now - new Date(report.createdAt).getTime()) / 60000;
+      await ResolutionLog.create({ responseTimeMinutes: mins });
+
+      const vdoc = await Volunteer.findById(vol._id);
+      if (vdoc) {
+        vdoc.isAvailable = true;
+        vdoc.status = 'free';
+        vdoc.activeCase = null;
+        vdoc.totalResolved = (vdoc.totalResolved || 0) + 1;
+        if (vdoc.homeLocation != null && vdoc.homeLocation.lat != null && vdoc.homeLocation.lng != null) {
+          vdoc.location.lat = vdoc.homeLocation.lat;
+          vdoc.location.lng = vdoc.homeLocation.lng;
         }
-        vol.totalResolved = (vol.totalResolved || 0) + 1;
-        await vol.save();
+        await vdoc.save();
+      }
 
-        const rid = report._id;
-        await Report.findByIdAndDelete(rid);
+      const rid = report._id;
+      await Report.findByIdAndDelete(rid);
 
-        if (io) {
-          io.emit('reportDeleted', { reportId: rid });
-          io.emit('statsUpdated');
-        }
+      if (io) {
+        io.emit('reportDeleted', { reportId: rid });
+        io.emit('statsUpdated');
       }
     }
   } catch (e) {
@@ -78,10 +71,14 @@ async function resolveTick() {
   }
 }
 
-function startSimulation() {
-  setInterval(movementTick, 2000);
-  setInterval(resolveTick, 3000);
-  console.log('Crisis simulation engine started (movement 2s, resolve 3s)');
+async function simulationStep() {
+  await movementTick();
+  await resolveTick();
 }
 
-module.exports = { startSimulation, haversineKm };
+function startSimulation() {
+  setInterval(simulationStep, 2000);
+  console.log('Crisis simulation: movement + 30s task completion (tick 2s)');
+}
+
+module.exports = { startSimulation };

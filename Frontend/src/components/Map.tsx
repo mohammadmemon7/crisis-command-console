@@ -206,7 +206,7 @@ const Map = () => {
 
     const handleNewReport = (report: Report) => {
       toast.error("🚨 New Incident Alert", {
-        description: `${report.location} — Urgency ${report.urgency}/5`,
+        description: `${report.location} — Priority ${(report as any).priority ?? report.urgency}/5`,
         duration: 3000,
       })
     }
@@ -222,7 +222,7 @@ const Map = () => {
   const filteredReports = reports.filter(r => {
     if (!hasValidCoords(r)) return false
     if (activeFilter === 'all') return true
-    if (activeFilter === 'critical') return r.urgency === 5
+    if (activeFilter === 'critical') return ((r as any).priority ?? r.urgency) === 5
     if (activeFilter === 'unassigned') return r.status === 'pending'
     if (activeFilter === 'resolved') return r.status === 'resolved'
     return true
@@ -274,14 +274,14 @@ const Map = () => {
           <Marker
             key={report.id || (report as any)._id}
             position={[report.coordinates.lat, report.coordinates.lng]}
-            icon={getMarkerIcon(report.urgency, report.status, report.source)}
+            icon={getMarkerIcon((report as any).priority ?? report.urgency, report.status, report.source)}
           >
             <Popup>
               <div style={{ minWidth: '200px', fontFamily: 'monospace', fontSize: '12px', lineHeight: '1.6' }}>
                 <div style={{ fontSize: '13px', fontWeight: 'bold', marginBottom: '6px', color: '#1a1a2e' }}>{report.location}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
                   <span>Urgency:</span>
-                  <span style={{ color: getUrgencyColor(report.urgency), fontWeight: 'bold' }}>{report.urgency}/5</span>
+                  <span style={{ color: getUrgencyColor((report as any).priority ?? report.urgency), fontWeight: 'bold' }}>{(report as any).priority ?? report.urgency}/5</span>
                 </div>
                 <div style={{ marginTop: '6px', fontSize: '11px', color: '#888' }}>
                   {report.source === 'sms' ? '📱' : report.source === 'voice' ? '🎤' : report.source === 'sos' ? '🆘' : '💻'}

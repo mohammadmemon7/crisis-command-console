@@ -63,6 +63,8 @@ const CHAOS_MESSAGES: string[] = [
   "Vikhroli check naka completely submerged, rescue boats needed now"
 ]
 
+const CHAOS_DEMO_NAMES = ['Rahul', 'Amit', 'Priya', 'Sneha', 'Arjun', 'Neha']
+
 const MUMBAI_LOCATIONS = [
   { name: 'Kurla Station', lat: 19.0726, lng: 72.8795 },
   { name: 'Dharavi', lat: 19.0422, lng: 72.8553 },
@@ -179,7 +181,10 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
       const payload = {
         rawMessage: msg,
         source: 'app',
-        coordinates: { lat: loc.lat + latOffset, lng: loc.lng + lngOffset }
+        coordinates: { lat: loc.lat + latOffset, lng: loc.lng + lngOffset },
+        name: CHAOS_DEMO_NAMES[Math.floor(Math.random() * CHAOS_DEMO_NAMES.length)],
+        priority: Math.floor(Math.random() * 5) + 1,
+        chaosInject: true
       }
 
       try {

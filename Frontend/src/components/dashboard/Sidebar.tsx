@@ -383,7 +383,7 @@ export function Sidebar() {
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                 }}>
-                  {(report as any).name || 'Anonymous User'}
+                  {(report as any).name || 'Reporter'}
                 </div>
                 <div style={{
                   fontSize: '10px',

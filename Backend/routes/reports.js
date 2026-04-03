@@ -7,6 +7,14 @@ const { findAndAssignVolunteer } = require('../services/matcher');
 const { sendSMS } = require('../services/twilio');
 const { getIO } = require('../socket');
 
+const DEMO_NAMES = ['Rahul', 'Amit', 'Priya', 'Sneha', 'Arjun', 'Neha'];
+
+function clampPriority(p) {
+    const n = Number(p);
+    if (!Number.isFinite(n)) return null;
+    return Math.min(5, Math.max(1, Math.floor(n)));
+}
+
 // POST /api/reports (mounted at /api/reports)
 router.post('/', async (req, res) => {
     console.log("🔥 BACKEND HIT");
@@ -45,14 +53,20 @@ router.post('/', async (req, res) => {
 
         // Step 3 — Create new Report
         const needs = (aiResult.needs && aiResult.needs.length) ? aiResult.needs : ['rescue'];
-        const reporterName = (typeof bodyName === 'string' && bodyName.trim()) ? bodyName.trim() : 'Anonymous User';
+        const reporterName = (typeof bodyName === 'string' && bodyName.trim())
+            ? bodyName.trim()
+            : DEMO_NAMES[Math.floor(Math.random() * DEMO_NAMES.length)];
+
+        const priorityFromBody = clampPriority(req.body.priority);
+        const priority = priorityFromBody != null ? priorityFromBody : (Math.floor(Math.random() * 5) + 1);
 
         const newReport = new Report({
             name: reporterName,
             rawMessage: message,
             location: locationLabel,
             ...(coordinates ? { coordinates } : {}),
-            urgency: aiResult.urgency,
+            urgency: priority,
+            priority,
             peopleCount: aiResult.peopleCount,
             needs,
             source: source || 'app',
@@ -146,6 +160,11 @@ router.patch('/:id', async (req, res) => {
                 vol.activeCase = id;
                 await vol.save();
             }
+            updatedReport = await Report.findByIdAndUpdate(
+                id,
+                { startedAt: new Date() },
+                { new: true }
+            );
         }
 
         if (status === 'resolved') {
