@@ -4,10 +4,11 @@ const init = (httpServer) => {
 
   const allowedOrigins = [
     process.env.FRONTEND_URL,
+    'https://crisis-command-console-production.up.railway.app',
+    'http://localhost:8081',
     'http://localhost:8080',
     'http://localhost:5173',
-    'http://localhost:3000',
-    'https://crisis-command-console-production.up.railway.app'
+    'http://localhost:3000'
   ].filter(Boolean);
 
   io = new Server(httpServer, {
@@ -22,7 +23,8 @@ const init = (httpServer) => {
       },
       methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
       credentials: true
-    }
+    },
+    transports: ["websocket", "polling"]
   });
 
   io.on('connection', (socket) => {

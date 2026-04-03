@@ -11,10 +11,11 @@ const app = express();
 
 const allowedOrigins = [
   process.env.FRONTEND_URL,
+  'https://crisis-command-console-production.up.railway.app',
+  'http://localhost:8081',
   'http://localhost:8080',
   'http://localhost:5173',
-  'http://localhost:3000',
-  'https://crisis-command-console-production.up.railway.app'
+  'http://localhost:3000'
 ].filter(Boolean);
 
 console.log('=== CORS Allowed Origins Configuration ===');
