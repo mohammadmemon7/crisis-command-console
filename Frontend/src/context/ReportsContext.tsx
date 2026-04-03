@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
 import { MOCK_REPORTS } from '../mock/mockData'
 import socketService from '../services/socket'
 import type { Report } from '../mock/mockData'
@@ -18,6 +18,7 @@ interface ReportsContextType {
   addReport: (report: Report) => void
   updateReport: (id: string, update: Partial<Report>) => void
   resetReports: () => void
+  refreshReports: () => Promise<void>
   injectChaos: (onProgress?: (progress: string) => void) => void
   stats: Stats
 }
@@ -78,26 +79,25 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
     volunteersDeployed: 0,
   })
 
-  // Load existing reports and volunteers on mount
-  const loadInitialData = async () => {
+  const refreshReports = useCallback(async () => {
     try {
       const [repRes, volRes] = await Promise.all([
         fetch(`${API_URL}/api/reports`),
         fetch(`${API_URL}/api/volunteers`)
       ])
-      
-      const { reports: initialReports } = await repRes.json()
-      const { volunteers } = await volRes.json()
-      
+
+      const repJson = await repRes.json()
+      const volJson = await volRes.json()
+      const initialReports = repJson.reports
+
       setReports(initialReports || [])
-      
-      // Calculate stats from real data
-      const activeCount = (initialReports || []).filter((r: any) => 
+
+      const activeCount = (initialReports || []).filter((r: any) =>
         r.status === 'pending' || r.status === 'assigned'
       ).length
       const resolvedCount = (initialReports || []).filter((r: any) => r.status === 'resolved').length
-      const deployedCount = (volunteers || []).filter((v: any) => !v.isAvailable).length
-      
+      const deployedCount = (volJson.volunteers || []).filter((v: any) => !v.isAvailable).length
+
       setStats({
         active: activeCount,
         resolved: resolvedCount,
@@ -107,15 +107,15 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
       console.error('Failed to load initial data:', err)
       if (MOCK_MODE) setReports(MOCK_REPORTS)
     }
-  }
+  }, [])
 
   useEffect(() => {
     if (!MOCK_MODE) {
-      loadInitialData()
+      refreshReports()
     } else {
       setReports(MOCK_REPORTS)
     }
-  }, [])
+  }, [refreshReports])
 
   const addReport = (report: any) => {
     setReports(prev => {
@@ -151,13 +151,16 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
 
       try {
         if (!MOCK_MODE) {
-          await fetch(`${API_URL}/api/reports`, {
+          const res = await fetch(`${API_URL}/api/reports`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           })
+          if (!res.ok) {
+            const t = await res.text()
+            console.error('Chaos POST failed:', t)
+          }
         }
-
 
         if (onProgress) {
           if (i < CHAOS_MESSAGES.length - 1) {
@@ -172,24 +175,20 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
 
       await new Promise(resolve => setTimeout(resolve, 300))
     }
+    if (!MOCK_MODE) await refreshReports()
   }
 
   useEffect(() => {
-    socketService.on('newReport', (report: Report) => {
-      addReport(report)
-    })
-    socketService.on('reportUpdated', (update: any) => {
-      const id = update.reportId || update.id
-      updateReport(id, { 
-        status: update.status,
-        assignedTo: update.volunteerName,
-        assignedVolunteer: update.volunteerName
-      })
-    })
-  }, [])
+    socketService.on('newReport', refreshReports)
+    socketService.on('reportUpdated', refreshReports)
+    return () => {
+      socketService.off('newReport', refreshReports)
+      socketService.off('reportUpdated', refreshReports)
+    }
+  }, [refreshReports])
 
   return (
-    <ReportsContext.Provider value={{ reports, addReport, updateReport, resetReports, injectChaos, stats }}>
+    <ReportsContext.Provider value={{ reports, addReport, updateReport, resetReports, refreshReports, injectChaos, stats }}>
       {children}
     </ReportsContext.Provider>
   )

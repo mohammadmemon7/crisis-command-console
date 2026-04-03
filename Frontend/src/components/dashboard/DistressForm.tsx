@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Send, Mic, Loader2 } from "lucide-react";
 import { useReports } from "../../context/ReportsContext";
-import type { Report } from "../../mock/mockData";
+import { API_URL } from "../../config";
 
 export function DistressForm() {
-  const { addReport } = useReports();
+  const { refreshReports } = useReports();
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -40,36 +40,37 @@ export function DistressForm() {
     if (!message.trim() || loading) return;
 
     setLoading(true);
-    
-    // Simulate AI Processing
-    setTimeout(() => {
-      const latOffset = (Math.random() - 0.5) * 0.1;
-      const lngOffset = (Math.random() - 0.5) * 0.1;
-
-      const fakeReport: Report = {
-        id: Date.now().toString(),
-        rawMessage: message,
-        location: "Admin Report — " + message.slice(0, 20),
-        coordinates: {
-          lat: 19.076 + (Math.random() - 0.5) * 0.05,
-          lng: 72.877 + (Math.random() - 0.5) * 0.05,
-        },
-        urgency: 4,
-        peopleCount: 1,
-        needs: ['rescue'],
-        status: 'pending',
-        source: 'app',
-        createdAt: new Date() as any, // Prompt asked for toISOString() but interface requires Date
-      };
-
-      addReport(fakeReport);
-      setLoading(false);
+    try {
+      console.log("🚀 Sending request to backend...");
+      const res = await fetch(`${API_URL}/api/reports`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rawMessage: message.trim(),
+          source: "app",
+          coordinates: {
+            lat: 19.076 + (Math.random() - 0.5) * 0.05,
+            lng: 72.877 + (Math.random() - 0.5) * 0.05,
+          },
+        }),
+      });
+      console.log("📡 Response status:", res.status);
+      if (!res.ok) {
+        const text = await res.text();
+        console.error("❌ Backend error:", text);
+        throw new Error("Backend failed");
+      }
+      const data = await res.json();
+      console.log("✅ Saved in DB:", data);
+      await refreshReports();
       setSuccess(true);
       setMessage("");
-
-      // Reset success message after 2s
       setTimeout(() => setSuccess(false), 2000);
-    }, 1000);
+    } catch (err) {
+      console.error("❌ Submit failed:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

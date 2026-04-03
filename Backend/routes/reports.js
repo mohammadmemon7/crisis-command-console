@@ -37,6 +37,7 @@ router.post('/', async (req, res) => {
             status: 'pending'
         });
         const savedReport = await newReport.save();
+        console.log("✅ SAVED TO DB:", savedReport);
 
         // Step 4 — Emit socket event
         getIO().emit('newReport', savedReport);
@@ -68,9 +69,9 @@ router.post('/', async (req, res) => {
             assigned: !!matchResult,
             volunteer: matchResult ? matchResult.volunteer.name : null
         });
-    } catch (error) {
-        console.error("Failed to save report:", error);
-        return res.status(500).json({ error: 'Failed to save report', details: error.message });
+    } catch (err) {
+        console.error("❌ ERROR:", err);
+        return res.status(500).json({ error: 'Failed to save report' });
     }
 });
 
@@ -95,9 +96,14 @@ router.patch('/:id', async (req, res) => {
     console.log(`API HIT: PATCH /api/reports/${req.params.id}`);
     try {
         const { id } = req.params;
-        const { status } = req.body;
+        const { status, volunteerId } = req.body;
 
-        const updatedReport = await Report.findByIdAndUpdate(id, { status }, { new: true });
+        const update = { status };
+        if (volunteerId && status === 'assigned') {
+            update.assignedTo = volunteerId;
+        }
+
+        const updatedReport = await Report.findByIdAndUpdate(id, update, { new: true });
         
         if (!updatedReport) {
             return res.status(404).json({ error: 'Report not found' });

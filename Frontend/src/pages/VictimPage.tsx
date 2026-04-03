@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import socketService from '../services/socket'
 import { useReports } from '../context/ReportsContext'
-import { API_URL } from '../config'
+
+const API_URL = "https://crisis-command-console-production.up.railway.app"
 
 const MOCK_MODE = false
 // Set to false when real backend is connected
@@ -144,7 +145,7 @@ const PhoneFrame = ({ children }: { children: React.ReactNode }) => (
 
 export default function VictimPage() {
   const navigate = useNavigate()
-  const { addReport } = useReports()
+  const { refreshReports } = useReports()
   
   const [state, setState] = useState<VictimState>('idle')
   const [message, setMessage] = useState('')
@@ -253,6 +254,8 @@ export default function VictimPage() {
 
       const data = await res.json();
       console.log("✅ Saved in DB:", data);
+
+      await refreshReports();
 
       if (data.report && data.report._id) {
         setReportId(data.report._id)

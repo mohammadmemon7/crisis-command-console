@@ -7,9 +7,6 @@ import { toast } from 'sonner'
 import type { Report } from '../mock/mockData'
 import { MOCK_VOLUNTEERS } from '../mock/mockData'
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL 
-  || 'https://crisis-command-console-production.up.railway.app'
-
 // LEAFLET ICON FIX
 delete (L.Icon.Default.prototype as any)._getIconUrl
 L.Icon.Default.mergeOptions({
@@ -185,36 +182,20 @@ const getTimelineHtml = (report: Report) => {
 type FilterType = 'all' | 'critical' | 'unassigned' | 'resolved'
 
 const Map = () => {
-  const { reports, updateReport, addReport } = useReports()
+  const { reports, updateReport } = useReports()
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
   const [newReportIds, setNewReportIds] = useState<Set<string>>(new Set())
-
-  // Fix 5: Load existing reports on mount to persist pins
-  useEffect(() => {
-    const loadReports = async () => {
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/reports`)
-        const data = await res.json()
-        if (data.reports) {
-          data.reports.forEach((r: Report) => addReport(r))
-        }
-      } catch (err) {
-        console.error('Map failed to load initial reports:', err)
-      }
-    }
-    loadReports()
-  }, [])
 
   useEffect(() => {
     // FIX 1: reportUpdated listener for real-time pin transitions
     const handleReportUpdate = (update: any) => {
       const id = update.reportId || update.id
-      updateReport(id, { 
-        status: update.status, 
+      updateReport(id, {
+        status: update.status,
         assignedTo: update.volunteerName,
-        assignedVolunteer: update.volunteerName 
+        assignedVolunteer: update.volunteerName
       })
-      
+
       toast.success("Incident Updated", {
         description: `Case ${id.slice(-4)} is now ${update.status.toUpperCase()}`,
         duration: 3000,

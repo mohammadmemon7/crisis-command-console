@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import L from 'leaflet'
 import { MOCK_VOLUNTEERS } from '../mock/mockData'
 import socketService from '../services/socket'
+import { API_URL } from '../config'
 
 // Fix leaflet icon
 delete (L.Icon.Default.prototype as any)._getIconUrl
@@ -15,8 +16,6 @@ L.Icon.Default.mergeOptions({
 
 const MOCK_MODE = false
 // Set to false when real backend is connected
-
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://crisis-command-console-production.up.railway.app'
 
 type VolunteerState = 'available' | 'newCase' | 'accepted' | 'resolved'
 
@@ -218,10 +217,11 @@ export default function VolunteerPage() {
       return
     }
     try {
-      await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/report/${caseId}/accept`, {
+      await fetch(`${API_URL}/api/reports/${caseId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
+          status: 'assigned',
           volunteerId: selectedVolunteer?.id
         })
       })
@@ -238,9 +238,10 @@ export default function VolunteerPage() {
       return
     }
     try {
-      await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/report/${caseId}/resolve`, {
+      await fetch(`${API_URL}/api/reports/${caseId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'resolved' })
       })
       setVolunteerState('resolved')
       setTimeout(() => setVolunteerState('available'), 3000)
@@ -256,10 +257,11 @@ export default function VolunteerPage() {
       return
     }
     try {
-      await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/report/${caseId}/decline`, {
+      await fetch(`${API_URL}/api/reports/${caseId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
+          status: 'false_alarm',
           volunteerId: selectedVolunteer?.id
         })
       })

@@ -1,5 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 import { MOCK_REPORTS, Report, Volunteer, Stats } from '../mock/mockData';
+import { API_URL } from '../config';
 
 export type { Report, Volunteer, Stats };
 
@@ -68,8 +69,7 @@ const socketService: SocketService = MOCK_MODE ? {
     };
   }
 } : (() => {
-  const SOCKET_URL = import.meta.env.VITE_BACKEND_URL 
-  || 'https://crisis-command-console-production.up.railway.app'
+  const SOCKET_URL = API_URL
 
   console.log('Connecting to:', SOCKET_URL)
 
