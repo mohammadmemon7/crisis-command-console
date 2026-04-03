@@ -97,26 +97,25 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
 
   const fetchAllData = async () => {
     try {
-      const [r, v] = await Promise.all([
+      const [r, v, s] = await Promise.all([
         fetch(`${API_URL}/api/reports`),
-        fetch(`${API_URL}/api/volunteers`)
+        fetch(`${API_URL}/api/volunteers`),
+        fetch(`${API_URL}/api/stats`)
       ]);
 
       const reportsJson = await r.json();
       const volunteersJson = await v.json();
+      const statsJson = await s.json();
 
       setReports(reportsJson);
       setVolunteers(volunteersJson);
       
-      // Update stats based on the data
-      const activeCount = reportsJson.filter((r: any) => r.status === 'pending' || r.status === 'assigned').length;
-      const deployedCount = volunteersJson.filter((v: any) => v.status === 'busy').length;
-      
-      setStats(prev => ({
-        ...prev,
-        active: activeCount,
-        volunteersDeployed: deployedCount
-      }));
+      setStats({
+        active: statsJson.active,
+        resolved: statsJson.resolved,
+        volunteersDeployed: statsJson.volunteersDeployed,
+        avgResponseTimeMinutes: Number(statsJson.avgResponseTime)
+      });
     } catch (err) {
       console.error('Failed to fetch data:', err);
     }

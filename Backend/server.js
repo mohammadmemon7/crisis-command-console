@@ -51,6 +51,7 @@ socketManager.init(server);
 
 const Report = require('./models/Report');
 const Volunteer = require('./models/Volunteer');
+const Stats = require('./models/Stats');
 
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => {
@@ -87,29 +88,58 @@ mongoose.connect(process.env.MONGODB_URI)
     // 🔥 STEP 4: 30-SECOND RESOLUTION ENGINE (CRITICAL FIX)
     setInterval(async () => {
       try {
-        const activeReports = await Report.find({ status: "assigned" });
+        const reports = await Report.find({ status: "assigned" }).populate("assignedTo");
 
-        for (let report of activeReports) {
+        for (let report of reports) {
           const now = new Date();
           const started = new Date(report.startedAt);
-
           const seconds = (now - started) / 1000;
 
           if (seconds >= 30) {
-            const volunteer = await Volunteer.findById(report.assignedTo);
+            const volunteer = report.assignedTo;
 
+            // Update stats
+            let stats = await Stats.findOne();
+            if (!stats) stats = await Stats.create({});
+            stats.totalResolved += 1;
+            stats.totalResponseTime += seconds;
+            await stats.save();
+
+            // Free volunteer
             if (volunteer) {
               volunteer.status = "free";
               volunteer.currentTask = null;
               await volunteer.save();
             }
 
+            // Delete report
             await Report.findByIdAndDelete(report._id);
             console.log(`Resolved and deleted report ${report._id}, freed volunteer ${volunteer ? volunteer.name : 'unknown'}`);
           }
         }
       } catch (err) {
         console.error("Resolution Engine Error:", err);
+      }
+    }, 2000);
+
+    // 🔥 STEP 5: VOLUNTEER MOVEMENT ENGINE
+    setInterval(async () => {
+      try {
+        const reports = await Report.find({ status: "assigned" }).populate("assignedTo");
+
+        for (let report of reports) {
+          const vol = report.assignedTo;
+          if (!vol || !vol.coordinates || !report.coordinates) continue;
+
+          // Move 10% closer every tick
+          const newLat = vol.coordinates.lat + (report.coordinates.lat - vol.coordinates.lat) * 0.1;
+          const newLng = vol.coordinates.lng + (report.coordinates.lng - vol.coordinates.lng) * 0.1;
+
+          vol.coordinates = { lat: newLat, lng: newLng };
+          await vol.save();
+        }
+      } catch (err) {
+        console.error("Movement Engine Error:", err);
       }
     }, 2000);
   })
