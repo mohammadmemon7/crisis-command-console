@@ -49,10 +49,69 @@ app.use(express.urlencoded({ extended: true }));
 const server = http.createServer(app);
 socketManager.init(server);
 
+const Report = require('./models/Report');
+const Volunteer = require('./models/Volunteer');
+
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => {
     console.log('MongoDB connected');
-    require('./services/simulation').startSimulation();
+    // require('./services/simulation').startSimulation(); // Disabled in favor of strict engines below
+
+    // 🔥 STEP 3: ASSIGNMENT ENGINE (RUN EVERY 2s)
+    setInterval(async () => {
+      try {
+        const pendingReports = await Report.find({ status: "pending" });
+        const freeVolunteers = await Volunteer.find({ status: "free" });
+
+        for (let report of pendingReports) {
+          if (freeVolunteers.length === 0) break;
+
+          const volunteer = freeVolunteers.shift();
+
+          report.status = "assigned";
+          report.assignedTo = volunteer._id;
+          report.startedAt = new Date();
+
+          volunteer.status = "busy";
+          volunteer.currentTask = report._id;
+
+          await report.save();
+          await volunteer.save();
+          console.log(`Assigned report ${report._id} to volunteer ${volunteer.name}`);
+        }
+      } catch (err) {
+        console.error("Assignment Engine Error:", err);
+      }
+    }, 2000);
+
+    // 🔥 STEP 4: 30-SECOND RESOLUTION ENGINE (CRITICAL FIX)
+    setInterval(async () => {
+      try {
+        const activeReports = await Report.find({ status: "assigned" });
+
+        for (let report of activeReports) {
+          const now = new Date();
+          const started = new Date(report.startedAt);
+
+          const seconds = (now - started) / 1000;
+
+          if (seconds >= 30) {
+            const volunteer = await Volunteer.findById(report.assignedTo);
+
+            if (volunteer) {
+              volunteer.status = "free";
+              volunteer.currentTask = null;
+              await volunteer.save();
+            }
+
+            await Report.findByIdAndDelete(report._id);
+            console.log(`Resolved and deleted report ${report._id}, freed volunteer ${volunteer ? volunteer.name : 'unknown'}`);
+          }
+        }
+      } catch (err) {
+        console.error("Resolution Engine Error:", err);
+      }
+    }, 2000);
   })
   .catch((err) => { console.error('MongoDB error:', err); process.exit(1); });
 

@@ -9,8 +9,6 @@ import type { ApiVolunteer } from '../../context/ReportsContext'
 import type { Report } from '../../mock/mockData'
 import { useReports } from '../../context/ReportsContext'
 
-const MOCK_MODE = false
-
 function getUrgencyColor(urgency: number): string {
   const map: Record<number, string> = {
     5: '#FF3B3B',
@@ -40,23 +38,13 @@ export function Sidebar() {
   const location = useLocation()
   const { reports, stats, volunteers, injectChaos } = useReports()
 
-  const volunteerRows: ApiVolunteer[] = MOCK_MODE
-    ? MOCK_VOLUNTEERS.map(v => ({
-        _id: v.id,
-        name: v.name,
-        area: v.area,
-        skills: v.skills,
-        coordinates: v.location,
-        isAvailable: v.isAvailable,
-        status: v.isAvailable ? 'free' : 'busy',
-      }))
-    : volunteers
+  const volunteerRows: ApiVolunteer[] = volunteers
   
   // LIVE clock state
   const [clock, setClock] = useState<string>('')
   
   // Connection Status State
-  const [connectionStatus, setConnectionStatus] = useState<'simulation' | 'live' | 'disconnected'>('simulation')
+  const [connectionStatus, setConnectionStatus] = useState<'live' | 'disconnected'>('live')
   
   // Flashing state for LIVE indicator
   const [isFlashing, setIsFlashing] = useState(false)
@@ -73,11 +61,6 @@ export function Sidebar() {
 
   // Connection Tracking useEffect
   useEffect(() => {
-    if (MOCK_MODE) {
-      setConnectionStatus('simulation')
-      return
-    }
-
     // Check initial connection state
     if (socketService.isConnected()) {
       setConnectionStatus('live')

@@ -4,8 +4,8 @@ const Volunteer = require('../models/Volunteer');
 
 router.get('/api/volunteers', async (req, res) => {
   try {
-    const volunteers = await Volunteer.find().sort({ registeredAt: -1 });
-    return res.status(200).json({ success: true, volunteers });
+    const volunteers = await Volunteer.find();
+    return res.status(200).json(volunteers);
   } catch (error) {
     return res.status(500).json({ error: 'Server error', details: error.message });
   }
@@ -30,26 +30,6 @@ router.post('/api/volunteer', async (req, res) => {
     }).save();
 
     return res.status(201).json({ success: true, volunteer });
-  } catch (error) {
-    return res.status(500).json({ error: 'Server error', details: error.message });
-  }
-});
-
-router.patch('/api/volunteer/:id/available', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const volunteer = await Volunteer.findById(id);
-    if (!volunteer) {
-      return res.status(404).json({ error: 'Volunteer not found' });
-    }
-
-    volunteer.isAvailable = true;
-    volunteer.status = 'free';
-    volunteer.activeCase = null;
-    volunteer.currentTask = null;
-    await volunteer.save();
-
-    return res.status(200).json({ success: true, volunteer });
   } catch (error) {
     return res.status(500).json({ error: 'Server error', details: error.message });
   }

@@ -319,10 +319,10 @@ const Map = () => {
         ))}
 
         {volunteers.filter(volHasLocation).map(vol => {
-          const busy = vol.status === 'busy' || vol.isAvailable === false
+          const color = vol.status === "busy" ? "orange" : "green"
           const volIcon = L.divIcon({
             className: '',
-            html: `<div style="position:relative;display:inline-block;"><div style="width:26px;height:26px;border-radius:50%;background:${busy ? '#F97316' : '#22C55E'};border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:bold;">V</div>${busy ? `<span style="position:absolute;top:-6px;right:-12px;background:#C2410C;color:white;font-size:7px;font-weight:bold;padding:1px 3px;border-radius:3px;white-space:nowrap;z-index:10;">BUSY</span>` : `<span style="position:absolute;top:-6px;right:-12px;background:#15803D;color:white;font-size:7px;font-weight:bold;padding:1px 3px;border-radius:3px;white-space:nowrap;z-index:10;">FREE</span>`}</div>`,
+            html: `<div style="width:26px;height:26px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:bold;">V</div>`,
             iconSize: [26, 26], iconAnchor: [13, 13],
           })
           return (
@@ -330,9 +330,7 @@ const Map = () => {
               <Popup>
                 <div style={{ fontFamily: 'sans-serif', minWidth: '160px' }}>
                   <div style={{ fontWeight: 'bold', fontSize: '13px' }}>👤 {vol.name}</div>
-                  <div style={{ fontSize: '11px', color: '#555', marginTop: '4px' }}>🛠 Skills: {(vol.skills || []).join(', ')}</div>
-                  <div style={{ fontSize: '11px', color: '#555' }}>📍 Area: {vol.area || '—'}</div>
-                  <div style={{ marginTop: '6px', fontSize: '11px', color: '#2563EB', fontWeight: 'bold' }}>{busy ? '🚗 Deployed' : '✅ Available'}</div>
+                  <div style={{ marginTop: '6px', fontSize: '11px', color: color === 'orange' ? '#F97316' : '#22C55E', fontWeight: 'bold' }}>{vol.status === 'busy' ? 'BUSY' : 'FREE'}</div>
                 </div>
               </Popup>
             </Marker>
