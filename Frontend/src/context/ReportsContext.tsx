@@ -89,6 +89,7 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
       const repJson = await repRes.json()
       const volJson = await volRes.json()
       const initialReports = repJson.reports
+      console.log('Reports from backend:', initialReports)
 
       setReports(initialReports || [])
 

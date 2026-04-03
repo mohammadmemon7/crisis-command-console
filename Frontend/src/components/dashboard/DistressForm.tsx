@@ -38,9 +38,22 @@ export function DistressForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim() || loading) return;
+    if (!navigator.geolocation) {
+      alert("Geolocation is required to submit");
+      return;
+    }
 
     setLoading(true);
     try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 25000,
+          maximumAge: 0,
+        });
+      });
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
       console.log("🚀 Sending request to backend...");
       const res = await fetch(`${API_URL}/api/reports`, {
         method: "POST",
@@ -48,10 +61,9 @@ export function DistressForm() {
         body: JSON.stringify({
           rawMessage: message.trim(),
           source: "app",
-          coordinates: {
-            lat: 19.076 + (Math.random() - 0.5) * 0.05,
-            lng: 72.877 + (Math.random() - 0.5) * 0.05,
-          },
+          lat,
+          lng,
+          location: "User Location",
         }),
       });
       console.log("📡 Response status:", res.status);
@@ -68,6 +80,7 @@ export function DistressForm() {
       setTimeout(() => setSuccess(false), 2000);
     } catch (err) {
       console.error("❌ Submit failed:", err);
+      alert("Location permission required or submission failed");
     } finally {
       setLoading(false);
     }

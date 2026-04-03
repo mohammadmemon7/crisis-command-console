@@ -228,73 +228,103 @@ export default function VictimPage() {
     }
   }, [reportId])
 
-  const handleSubmit = async () => {
-    try {
-      console.log("🚀 Sending request to backend...");
-      setState('submitting');
+  const GEO_OPTS: PositionOptions = {
+    enableHighAccuracy: true,
+    timeout: 25000,
+    maximumAge: 0,
+  }
 
-      const res = await fetch(`${API_URL}/api/reports`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          rawMessage: message,
-          source: "app"
-        })
-      });
+  const submitReportWithPosition = async (
+    pos: GeolocationPosition,
+    source: 'app' | 'sos' | 'voice',
+    rawMessageOverride?: string
+  ) => {
+    const raw = (rawMessageOverride ?? message).trim()
+    if (!raw) return
 
-      console.log("📡 Response status:", res.status);
+    console.log("🚀 Sending request to backend...");
 
-      if (!res.ok) {
-        const text = await res.text();
-        console.error("❌ Backend error:", text);
-        throw new Error("Backend failed");
-      }
+    const lat = pos.coords.latitude
+    const lng = pos.coords.longitude
 
-      const data = await res.json();
-      console.log("✅ Saved in DB:", data);
+    setState('submitting')
 
-      await refreshReports();
+    const res = await fetch(`${API_URL}/api/reports`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        rawMessage: raw,
+        source,
+        lat,
+        lng,
+        location: "User Location",
+      }),
+    })
 
-      if (data.report && data.report._id) {
-        setReportId(data.report._id)
-        if (data.assigned === true) {
-          setAssignedName(data.volunteer || 'Rajesh Patil')
-          setAssignedEta('8')
-          setState('assigned')
-        } else {
-          setState('waiting') 
-        }
-      } else if (data._id) {
-        setReportId(data._id)
+    console.log("📡 Response status:", res.status)
+
+    if (!res.ok) {
+      const text = await res.text()
+      console.error("❌ Backend error:", text)
+      throw new Error("Backend failed")
+    }
+
+    const data = await res.json()
+    console.log("✅ Saved in DB:", data)
+
+    await refreshReports()
+
+    if (data.report && data.report._id) {
+      setReportId(data.report._id)
+      if (data.assigned === true) {
+        setAssignedName(data.volunteer || 'Rajesh Patil')
+        setAssignedEta('8')
+        setState('assigned')
+      } else {
         setState('waiting')
       }
-
-      alert("Report submitted successfully");
-
-    } catch (err) {
-      console.error("❌ Submit failed:", err);
-      alert("Submission failed");
-      setState('idle');
+    } else if (data._id) {
+      setReportId(data._id)
+      setState('waiting')
     }
-  };
 
-  const handleSOS = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setMessage(`SOS — ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`)
-          handleSubmit()
-        },
-        () => {
-          setMessage('SOS — location unavailable')
-          handleSubmit()
-        }
-      )
-    } else {
-      setMessage('SOS — GPS not supported')
-      handleSubmit()
+    alert("Report submitted successfully")
+  }
+
+  const handleSubmit = async () => {
+    if (!message.trim()) return
+    if (!navigator.geolocation) {
+      alert("Geolocation is required to submit")
+      return
+    }
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, GEO_OPTS)
+      })
+      await submitReportWithPosition(pos, voiceUsed ? 'voice' : 'app')
+    } catch (err) {
+      console.error("❌ Submit failed:", err)
+      alert("Location permission required to submit report")
+      setState('idle')
+    }
+  }
+
+  const handleSOS = async () => {
+    if (!navigator.geolocation) {
+      alert("GPS not supported")
+      return
+    }
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, GEO_OPTS)
+      })
+      const text = `SOS — ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`
+      setMessage(text)
+      await submitReportWithPosition(pos, 'sos', text)
+    } catch (err) {
+      console.error("❌ SOS failed:", err)
+      alert("Location required for SOS")
+      setState('idle')
     }
   }
 

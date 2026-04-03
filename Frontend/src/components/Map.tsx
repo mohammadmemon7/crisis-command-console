@@ -7,6 +7,11 @@ import { toast } from 'sonner'
 import type { Report } from '../mock/mockData'
 import { MOCK_VOLUNTEERS } from '../mock/mockData'
 
+function hasValidCoords(r: Report): boolean {
+  const c = (r as any).coordinates
+  return !!(c && typeof c.lat === 'number' && typeof c.lng === 'number' && !Number.isNaN(c.lat) && !Number.isNaN(c.lng))
+}
+
 // LEAFLET ICON FIX
 delete (L.Icon.Default.prototype as any)._getIconUrl
 L.Icon.Default.mergeOptions({
@@ -187,6 +192,10 @@ const Map = () => {
   const [newReportIds, setNewReportIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
+    console.log('Reports from backend:', reports)
+  }, [reports])
+
+  useEffect(() => {
     // FIX 1: reportUpdated listener for real-time pin transitions
     const handleReportUpdate = (update: any) => {
       const id = update.reportId || update.id
@@ -227,6 +236,7 @@ const Map = () => {
   }, [])
 
   const filteredReports = reports.filter(r => {
+    if (!hasValidCoords(r)) return false
     if (activeFilter === 'all') return true
     if (activeFilter === 'critical') return r.urgency === 5
     if (activeFilter === 'unassigned') return r.status === 'pending'
@@ -262,7 +272,7 @@ const Map = () => {
       <MapContainer center={[19.0760, 72.8777]} zoom={12} style={{ height: '100%', width: '100%' }} zoomControl={false}>
         <TileLayer attribution='&copy; CARTO' url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
 
-        {reports.filter(r => r.status === 'assigned' && r.coordinates).map(report => {
+        {reports.filter(r => r.status === 'assigned' && hasValidCoords(r)).map(report => {
           const assignedVol = MOCK_VOLUNTEERS.find(v => v.id === report.assignedTo || v.name === report.assignedTo || !v.isAvailable)
           if (!assignedVol) return null
           return (
@@ -294,7 +304,7 @@ const Map = () => {
                 <div>👥 {report.peopleCount} log</div>
                 <div>⏱️ {getMinutesAgo(report.createdAt)} min ago</div>
                 <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
-                  {report.needs.map(need => (
+                  {(report.needs || []).map(need => (
                     <span key={need} style={{ padding: '1px 6px', borderRadius: '4px', background: '#1a1a2e', color: '#FFD700', fontSize: '10px', fontWeight: 600 }}>{need}</span>
                   ))}
                 </div>

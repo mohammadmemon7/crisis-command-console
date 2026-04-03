@@ -13,7 +13,7 @@ router.post('/', async (req, res) => {
     console.log("📦 DATA:", req.body);
     try {
         const message = req.body.message || req.body.rawMessage;
-        const { source, coordinates } = req.body;
+        const { source, coordinates: coordsBody, location: bodyLocation, lat: bodyLat, lng: bodyLng } = req.body;
 
         console.log("Incoming report:", req.body);
 
@@ -25,11 +25,29 @@ router.post('/', async (req, res) => {
         // Step 2 — Call classifyMessage(message)
         const aiResult = await classifyMessage(message);
 
+        const toNum = (v) => (v === undefined || v === null || v === '' ? NaN : Number(v));
+        const latN = toNum(bodyLat);
+        const lngN = toNum(bodyLng);
+        let coordinates = null;
+        if (Number.isFinite(latN) && Number.isFinite(lngN)) {
+            coordinates = { lat: latN, lng: lngN };
+        } else if (coordsBody) {
+            const clat = toNum(coordsBody.lat);
+            const clng = toNum(coordsBody.lng);
+            if (Number.isFinite(clat) && Number.isFinite(clng)) {
+                coordinates = { lat: clat, lng: clng };
+            }
+        }
+
+        const locationLabel = (typeof bodyLocation === 'string' && bodyLocation.trim())
+            ? bodyLocation.trim()
+            : aiResult.location;
+
         // Step 3 — Create new Report
         const newReport = new Report({
             rawMessage: message,
-            location: aiResult.location,
-            coordinates: coordinates || { lat: 19.076, lng: 72.877 },
+            location: locationLabel,
+            ...(coordinates ? { coordinates } : {}),
             urgency: aiResult.urgency,
             peopleCount: aiResult.peopleCount,
             needs: aiResult.needs,
