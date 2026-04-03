@@ -47,18 +47,19 @@ export function DistressForm() {
       const lngOffset = (Math.random() - 0.5) * 0.1;
 
       const fakeReport: Report = {
-        id: `admin_${Date.now()}`,
-        location: "Admin Report — " + message.substring(0, 20) + (message.length > 20 ? "..." : ""),
+        id: Date.now().toString(),
+        rawMessage: message,
+        location: "Admin Report — " + message.slice(0, 20),
         coordinates: {
-          lat: 19.076 + latOffset,
-          lng: 72.877 + lngOffset,
+          lat: 19.076 + (Math.random() - 0.5) * 0.05,
+          lng: 72.877 + (Math.random() - 0.5) * 0.05,
         },
         urgency: 4,
         peopleCount: 1,
         needs: ['rescue'],
         status: 'pending',
         source: 'app',
-        createdAt: new Date(),
+        createdAt: new Date() as any, // Prompt asked for toISOString() but interface requires Date
       };
 
       addReport(fakeReport);
@@ -94,13 +95,13 @@ export function DistressForm() {
         <button
           type="button"
           onClick={handleMic}
-          className={`mt-2 flex w-full items-center justify-center gap-2 rounded-md border border-border py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all hover:bg-white/5 active:scale-95 ${
-            recording ? 'bg-red-500 text-white animate-pulse' : 'text-muted-foreground'
+          className={`mt-2 flex w-full items-center justify-center gap-2 rounded-md border border-border py-1.5 text-[10.5px] font-bold uppercase tracking-wider transition-all hover:bg-white/5 active:scale-95 ${
+            recording ? 'bg-red-500/20 text-red-500 border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.2)]' : 'text-muted-foreground'
           }`}
           style={{ fontFamily: "var(--font-mono)" }}
         >
-          <Mic size={12} />
-          {recording ? "Listening..." : "Voice Input (Hindi/English)"}
+          <span style={{ fontSize: '14px' }}>{recording ? "🔴" : "🎤"}</span>
+          {recording ? "Recording..." : "Voice Input (hi-IN)"}
         </button>
       </div>
 
@@ -118,7 +119,7 @@ export function DistressForm() {
           </>
         ) : (
           <>
-            <Send className="h-4 w-4" />
+            <Send className="h-4 w-4 rotate-45" />
             Submit Report
           </>
         )}

@@ -1,13 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import socketService from '../services/socket'
+import { useReports } from '../context/ReportsContext'
 
 const MOCK_MODE = true
+// Set to false when real backend is connected
 
 type VictimState = 'idle' | 'recording' | 'submitting' | 'waiting' | 'assigned' | 'resolved'
 
 const STYLES = {
   page: {
-    minHeight: '100vh',
+    minHeight: '100%',
     background: '#0a0a12',
     display: 'flex',
     flexDirection: 'column' as const,
@@ -19,11 +22,7 @@ const STYLES = {
   },
   card: {
     width: '100%',
-    maxWidth: '400px',
-    background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: '16px',
-    padding: '28px 24px',
+    background: 'transparent',
     display: 'flex',
     flexDirection: 'column' as const,
     gap: '16px',
@@ -34,10 +33,11 @@ const STYLES = {
     color: '#FF8C00',
     fontWeight: 700,
     textAlign: 'center' as const,
+    marginBottom: '8px',
   },
   textarea: {
     width: '100%',
-    minHeight: '100px',
+    minHeight: '120px',
     background: 'rgba(255,255,255,0.06)',
     border: '1px solid rgba(255,255,255,0.12)',
     borderRadius: '10px',
@@ -116,14 +116,14 @@ const STYLES = {
 }
 
 const BACK_BTN_STYLE = {
-  position: 'fixed' as const,
-  top: '16px',
-  left: '16px',
+  position: 'absolute' as const,
+  top: '20px',
+  left: '20px',
   background: 'rgba(255,255,255,0.06)',
   border: '1px solid rgba(255,255,255,0.12)',
   borderRadius: '6px',
   padding: '6px 10px',
-  fontSize: '11px',
+  fontSize: '10px',
   color: '#888',
   cursor: 'pointer',
   fontFamily: 'monospace',
@@ -131,16 +131,30 @@ const BACK_BTN_STYLE = {
   zIndex: 100,
 }
 
+const PhoneFrame = ({ children }: { children: React.ReactNode }) => (
+  <div className="min-h-screen flex items-center justify-center bg-gray-950 p-4 font-sans">
+    <div className="relative mx-auto max-w-[390px] w-full border-4 border-gray-800 rounded-[2.5rem] shadow-2xl overflow-hidden bg-gray-800 p-2 aspect-[9/19.5]">
+      <div className="rounded-[2rem] overflow-hidden bg-background h-full w-full relative border border-white/5">
+        {children}
+      </div>
+    </div>
+  </div>
+)
+
 export default function VictimPage() {
   const navigate = useNavigate()
+  const { addReport } = useReports()
+  
   const [state, setState] = useState<VictimState>('idle')
   const [message, setMessage] = useState('')
   const [countdown, setCountdown] = useState(120)
-  const [assignedName] = useState('Ramesh Patil')
-  const [assignedEta] = useState(7)
+  const [reportId, setReportId] = useState<string | null>(null)
+  const [assignedName, setAssignedName] = useState('Ramesh Patil')
+  const [assignedEta, setAssignedEta] = useState<string | number>(7)
+  const [voiceUsed, setVoiceUsed] = useState(false)
+  
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Inject pulse keyframe once
   useEffect(() => {
     const s = document.createElement('style')
     s.textContent = `
@@ -159,7 +173,6 @@ export default function VictimPage() {
     document.head.appendChild(s)
   }, [])
 
-  // Countdown timer for WAITING state
   useEffect(() => {
     if (state === 'waiting') {
       setCountdown(120)
@@ -180,14 +193,101 @@ export default function VictimPage() {
     }
   }, [state])
 
-  const handleSubmit = () => {
+  // Socket listeners for real backend integration
+  useEffect(() => {
+    if (MOCK_MODE) return
+    if (!reportId) return
+
+    const handleCaseAccepted = (data: {
+      reportId: string
+      volunteerName: string
+      eta: string
+      volunteerPhone?: string
+    }) => {
+      if (data.reportId !== reportId) return
+      setAssignedName(data.volunteerName)
+      setAssignedEta(data.eta)
+      setState('assigned')
+    }
+
+    const handleCaseResolved = (data: {
+      reportId: string
+    }) => {
+      if (data.reportId !== reportId) return
+      setState('resolved')
+    }
+
+    socketService.getSocket().on('caseAccepted', handleCaseAccepted)
+    socketService.getSocket().on('caseResolved', handleCaseResolved)
+
+    return () => {
+      socketService.getSocket().off('caseAccepted', handleCaseAccepted)
+      socketService.getSocket().off('caseResolved', handleCaseResolved)
+    }
+  }, [reportId])
+
+  const handleSubmit = async () => {
     if (!message.trim()) return
     setState('submitting')
 
     if (MOCK_MODE) {
+      const fakeId = Date.now().toString()
+      setReportId(fakeId)
+      
+      const mockReport = {
+        id: fakeId,
+        _id: fakeId,
+        rawMessage: message,
+        location: "Victim Report — " + message.slice(0, 20),
+        coordinates: {
+          lat: 19.076 + (Math.random() - 0.5) * 0.05,
+          lng: 72.877 + (Math.random() - 0.5) * 0.05
+        },
+        urgency: 4 as const,
+        peopleCount: 1,
+        needs: ['rescue'],
+        status: 'pending' as const,
+        source: voiceUsed ? 'voice' as const : 'app' as const,
+        createdAt: new Date()
+      }
+      addReport(mockReport)
+
       setTimeout(() => setState('waiting'), 2000)
-      setTimeout(() => setState('assigned'), 6000)
+      setTimeout(() => {
+        setAssignedName('Ravi Kumar')
+        setAssignedEta('8')
+        setState('assigned')
+      }, 6000)
       setTimeout(() => setState('resolved'), 15000)
+
+    } else {
+      try {
+        const response = await fetch(
+          `${import.meta.env.VITE_BACKEND_URL}/api/report`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message,
+              source: 'app',
+              coordinates: {
+                lat: 19.076 + (Math.random() - 0.5) * 0.05,
+                lng: 72.877 + (Math.random() - 0.5) * 0.05
+              }
+            })
+          }
+        )
+
+        if (!response.ok) throw new Error('Backend error')
+
+        const data = await response.json()
+        setReportId(data._id)
+        setState('waiting') // 'Report received' state in UI
+
+      } catch (err) {
+        console.error('Submit failed:', err)
+        setState('idle')
+      }
     }
   }
 
@@ -226,6 +326,7 @@ export default function VictimPage() {
     recognition.onresult = (e: any) => {
       const transcript = e.results[0][0].transcript
       setMessage(transcript)
+      setVoiceUsed(true)
       setState('idle')
     }
     recognition.onerror = () => setState('idle')
@@ -240,16 +341,9 @@ export default function VictimPage() {
     return `${m}:${String(sec).padStart(2, '0')}`
   }
 
-  // ── IDLE / RECORDING ──────────────────────────────────────
-  if (state === 'idle' || state === 'recording') {
-    return (
-      <div style={STYLES.page}>
-        <button
-          onClick={() => navigate('/')}
-          style={BACK_BTN_STYLE}
-        >
-          ← Command Centre
-        </button>
+  const renderContent = () => {
+    if (state === 'idle' || state === 'recording') {
+      return (
         <div style={STYLES.card}>
           <div style={STYLES.logo}>⚡ CRISISNET</div>
 
@@ -263,7 +357,6 @@ export default function VictimPage() {
             />
           </div>
 
-          {/* Mic button */}
           <button
             onClick={handleMic}
             style={{
@@ -280,12 +373,10 @@ export default function VictimPage() {
             🎤
           </button>
 
-          {/* SOS button */}
           <button onClick={handleSOS} style={STYLES.btnRed}>
             🆘 SOS — Abhi Khatre Mein Hoon
           </button>
 
-          {/* Submit */}
           <button
             onClick={handleSubmit}
             style={{
@@ -297,20 +388,11 @@ export default function VictimPage() {
             Help Maango →
           </button>
         </div>
-      </div>
-    )
-  }
+      )
+    }
 
-  // ── SUBMITTING ────────────────────────────────────────────
-  if (state === 'submitting') {
-    return (
-      <div style={STYLES.page}>
-        <button
-          onClick={() => navigate('/')}
-          style={BACK_BTN_STYLE}
-        >
-          ← Command Centre
-        </button>
+    if (state === 'submitting') {
+      return (
         <div style={STYLES.card}>
           <div style={STYLES.logo}>⚡ CRISISNET</div>
           <div style={{ textAlign: 'center', padding: '20px 0' }}>
@@ -326,20 +408,11 @@ export default function VictimPage() {
             <div style={{ ...STYLES.subText, marginTop: '8px' }}>Aapki report classify ho rahi hai</div>
           </div>
         </div>
-      </div>
-    )
-  }
+      )
+    }
 
-  // ── WAITING ───────────────────────────────────────────────
-  if (state === 'waiting') {
-    return (
-      <div style={STYLES.page}>
-        <button
-          onClick={() => navigate('/')}
-          style={BACK_BTN_STYLE}
-        >
-          ← Command Centre
-        </button>
+    if (state === 'waiting') {
+      return (
         <div style={STYLES.card}>
           <div style={STYLES.logo}>⚡ CRISISNET</div>
           <div style={{ textAlign: 'center', padding: '16px 0' }}>
@@ -364,20 +437,11 @@ export default function VictimPage() {
             <div style={{ ...STYLES.subText, marginTop: '4px' }}>Estimated wait time</div>
           </div>
         </div>
-      </div>
-    )
-  }
+      )
+    }
 
-  // ── ASSIGNED ──────────────────────────────────────────────
-  if (state === 'assigned') {
-    return (
-      <div style={STYLES.page}>
-        <button
-          onClick={() => navigate('/')}
-          style={BACK_BTN_STYLE}
-        >
-          ← Command Centre
-        </button>
+    if (state === 'assigned') {
+      return (
         <div style={STYLES.card}>
           <div style={STYLES.logo}>⚡ CRISISNET</div>
           <div style={{ textAlign: 'center', padding: '16px 0' }}>
@@ -405,19 +469,10 @@ export default function VictimPage() {
             </div>
           </div>
         </div>
-      </div>
-    )
-  }
+      )
+    }
 
-  // ── RESOLVED ──────────────────────────────────────────────
-  return (
-    <div style={STYLES.page}>
-      <button
-        onClick={() => navigate('/')}
-        style={BACK_BTN_STYLE}
-      >
-        ← Command Centre
-      </button>
+    return (
       <div style={STYLES.card}>
         <div style={STYLES.logo}>⚡ CRISISNET</div>
         <div style={{ textAlign: 'center', padding: '16px 0' }}>
@@ -431,12 +486,27 @@ export default function VictimPage() {
           onClick={() => {
             setState('idle')
             setMessage('')
+            setReportId(null)
           }}
           style={STYLES.btnGreen}
         >
           Wapas Jao
         </button>
       </div>
-    </div>
+    )
+  }
+
+  return (
+    <PhoneFrame>
+      <div style={STYLES.page}>
+        <button
+          onClick={() => navigate('/')}
+          style={BACK_BTN_STYLE}
+        >
+          ← Command Centre
+        </button>
+        {renderContent()}
+      </div>
+    </PhoneFrame>
   )
 }

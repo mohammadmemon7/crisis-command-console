@@ -3,33 +3,12 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { AlertTriangle, CheckCircle, Users, Clock, ChevronDown, ChevronUp, Zap } from 'lucide-react'
 import { StatCard } from './StatCard'
 import { DistressForm } from './DistressForm'
-import { MOCK_REPORTS, MOCK_VOLUNTEERS } from '../../mock/mockData'
+import { MOCK_VOLUNTEERS } from '../../mock/mockData'
 import socketService from '../../services/socket'
 import type { Report } from '../../mock/mockData'
 import { useReports } from '../../context/ReportsContext'
 
-const CHAOS_MESSAGES: string[] = [
-  "Main Kurla station ke paas hun, paani bahut aa gaya, 3 bachche fanse hain",
-  "Dharavi flooding badly, need medical help urgently, 2 log injured hain",
-  "Bandra west mein building partial collapse, rescue team chahiye abhi",
-  "Andheri subway mein paani ghus gaya, 10+ log trapped hain",
-  "Malad east mein nala overflow, 5 families stranded on rooftop",
-  "Borivali national park road blocked, elderly couple needs evacuation",
-  "Sion hospital ke paas road submerged, ambulance cannot pass",
-  "Dadar TT circle mein bijli ka khamba gira, bahut dangerous hai",
-  "Ghatkopar mein 4 foot paani, need boat rescue immediately",
-  "Vikhroli pipe line burst, 3 log injured, medical needed",
-  "Kurla LBS road mein truck accident + flooding, 6 log fanse",
-  "Dharavi 90 feet road completely underwater, 20+ residents stranded",
-  "Bandra reclamation mein sea waves aa rahi hain, evacuate karo",
-  "Andheri west market flooding, shop owners need help, bijli bhi gayi",
-  "Malad link road bridge pe crack, engineers chahiye turant",
-  "Borivali station platform 3 par paani, train service band ho gayi",
-  "Sion-Panvel highway mein landslide, 2 gaadiyaan dabi hain",
-  "Dadar shivaji park mein tree fall, 1 person injured seriously",
-  "Ghatkopar east mein building basement flooded, 8 cars doob gayi",
-  "Vikhroli check naka completely submerged, rescue boats needed now"
-]
+const MOCK_MODE = true
 
 function getUrgencyColor(urgency: number): string {
   const map: Record<number, string> = {
@@ -58,10 +37,16 @@ function getMinutesAgo(date: Date): number {
 export function Sidebar() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { reports, addReport, stats } = useReports()
+  const { reports, stats, injectChaos } = useReports()
   
   // LIVE clock state
   const [clock, setClock] = useState<string>('')
+  
+  // Connection Status State
+  const [connectionStatus, setConnectionStatus] = useState<'simulation' | 'live' | 'disconnected'>('simulation')
+  
+  // Flashing state for LIVE indicator
+  const [isFlashing, setIsFlashing] = useState(false)
   
   // Recent reports state (first 5 from ReportsContext, newest first)
   const recentReports = [...reports].slice(0, 5)
@@ -72,6 +57,25 @@ export function Sidebar() {
   // Chaos injection state
   const [isInjecting, setIsInjecting] = useState<boolean>(false)
   const [chaosProgress, setChaosProgress] = useState<string>('')
+
+  // Connection Tracking useEffect
+  useEffect(() => {
+    if (MOCK_MODE) {
+      setConnectionStatus('simulation')
+      return
+    }
+
+    // Check initial connection state
+    if (socketService.isConnected()) {
+      setConnectionStatus('live')
+    } else {
+      setConnectionStatus('disconnected')
+    }
+
+    // Listen for changes
+    socketService.onConnect(() => setConnectionStatus('live'))
+    socketService.onDisconnect(() => setConnectionStatus('disconnected'))
+  }, [])
 
   // Clock useEffect
   useEffect(() => {
@@ -87,76 +91,32 @@ export function Sidebar() {
     return () => clearInterval(interval)
   }, [])
 
+  // Listen for new reports to flash the LIVE indicator
+  useEffect(() => {
+    const handleNewReport = () => {
+      setIsFlashing(true)
+      setTimeout(() => setIsFlashing(false), 1000)
+    }
+    socketService.on('newReport', handleNewReport)
+    return () => {
+      socketService.off('newReport', handleNewReport)
+    }
+  }, [])
+
   // Chaos injection handler
   const handleInjectChaos = () => {
     if (isInjecting) return
     setIsInjecting(true)
-    setChaosProgress('Sending 1/20...')
-
-    const MUMBAI_LOCATIONS = [
-      { name: 'Kurla Station', lat: 19.0726, lng: 72.8795 },
-      { name: 'Dharavi', lat: 19.0422, lng: 72.8553 },
-      { name: 'Bandra West', lat: 19.0596, lng: 72.8295 },
-      { name: 'Andheri East', lat: 19.1197, lng: 72.8468 },
-      { name: 'Malad West', lat: 19.1874, lng: 72.8479 },
-      { name: 'Borivali East', lat: 19.2307, lng: 72.8567 },
-      { name: 'Sion', lat: 19.0397, lng: 72.8644 },
-      { name: 'Dadar', lat: 19.0186, lng: 72.8440 },
-      { name: 'Ghatkopar', lat: 19.0863, lng: 72.9073 },
-      { name: 'Vikhroli', lat: 19.0989, lng: 72.9252 },
-      { name: 'Chembur', lat: 19.0522, lng: 72.8994 },
-      { name: 'Mulund', lat: 19.1726, lng: 72.9560 },
-      { name: 'Thane', lat: 19.2183, lng: 72.9781 },
-      { name: 'Powai', lat: 19.1176, lng: 72.9060 },
-      { name: 'Juhu', lat: 19.1075, lng: 72.8263 },
-      { name: 'Versova', lat: 19.1307, lng: 71.8148 },
-      { name: 'Goregaon', lat: 19.1663, lng: 72.8526 },
-      { name: 'Kandivali', lat: 19.2067, lng: 72.8567 },
-      { name: 'Colaba', lat: 18.9067, lng: 72.8147 },
-      { name: 'Worli', lat: 19.0178, lng: 72.8178 },
-    ]
-
-    const ALL_NEEDS = ['rescue', 'medical', 'food', 'water', 'shelter', 'boat']
-
-    CHAOS_MESSAGES.forEach((msg, index) => {
-      setTimeout(() => {
-        const loc = MUMBAI_LOCATIONS[index % MUMBAI_LOCATIONS.length]
-        
-        // Add small random offset so pins don't stack exactly
-        const latOffset = (Math.random() - 0.5) * 0.008
-        const lngOffset = (Math.random() - 0.5) * 0.008
-
-        const needsCount = Math.ceil(Math.random() * 3)
-        const shuffled = [...ALL_NEEDS].sort(() => Math.random() - 0.5)
-        const needs = shuffled.slice(0, needsCount)
-
-        const report: Report = {
-          id: `chaos_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-          location: loc.name,
-          coordinates: {
-            lat: loc.lat + latOffset,
-            lng: loc.lng + lngOffset,
-          },
-          urgency: (Math.ceil(Math.random() * 5)) as 1 | 2 | 3 | 4 | 5,
-          peopleCount: Math.ceil(Math.random() * 10),
-          needs,
-          status: 'pending',
-          source: 'app',
-          createdAt: new Date(),
-        }
-
-        addReport(report)
-
-        if (index < CHAOS_MESSAGES.length - 1) {
-          setChaosProgress(`Sending ${index + 2}/20...`)
-        } else {
-          setChaosProgress('Chaos Injected! 20 Reports Sent')
-          setTimeout(() => {
-            setIsInjecting(false)
-            setChaosProgress('')
-          }, 3000)
-        }
-      }, index * 300)
+    setChaosProgress('Processing...')
+    
+    injectChaos((progress) => {
+      setChaosProgress(progress)
+      if (progress.includes('Chaos Injected')) {
+        setTimeout(() => {
+          setIsInjecting(false)
+          setChaosProgress('')
+        }, 3000)
+      }
     })
   }
 
@@ -165,26 +125,77 @@ export function Sidebar() {
       className="w-[300px] shrink-0 flex flex-col border-r border-border overflow-y-auto"
       style={{ background: 'hsl(var(--sidebar-bg))' }}
     >
-      {/* Header with LIVE text + clock */}
+      {/* Header with Connection Status + clock */}
       <div className="p-6 pb-4">
         {/* Logo row */}
-        <div className="flex items-center gap-2 mb-1">
-          <div className="h-2.5 w-2.5 rounded-full bg-primary animate-pulse" />
+        <div className="flex items-center gap-3 mb-1">
           <h1
             className="text-xl font-bold tracking-tight text-foreground"
             style={{ fontFamily: 'var(--font-display)' }}
           >
             CrisisNet
           </h1>
-          <span style={{
-            fontSize: '10px',
-            fontWeight: 700,
-            color: '#FF8C00',
-            letterSpacing: '1px',
-            marginLeft: '4px',
+          
+          {/* Connection Status Indicator */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '4px 10px',
+            borderRadius: '20px',
+            background: connectionStatus === 'live' 
+              ? 'rgba(34,197,94,0.15)' 
+              : connectionStatus === 'simulation'
+              ? 'rgba(234,179,8,0.15)'
+              : 'rgba(239,68,68,0.15)',
+            border: `1px solid ${
+              connectionStatus === 'live' 
+                ? 'rgba(34,197,94,0.3)' 
+                : connectionStatus === 'simulation'
+                ? 'rgba(234,179,8,0.3)'
+                : 'rgba(239,68,68,0.3)'
+            }`,
           }}>
-            LIVE
-          </span>
+            {/* Dot */}
+            <div style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              background: isFlashing 
+                ? '#EF4444'
+                : connectionStatus === 'live' 
+                ? '#22C55E' 
+                : connectionStatus === 'simulation'
+                ? '#EAB308'
+                : '#EF4444',
+              animation: connectionStatus === 'disconnected' 
+                ? 'pulse 1s infinite' 
+                : connectionStatus === 'live'
+                ? 'none'
+                : 'pulse 2s infinite',
+              boxShadow: connectionStatus === 'live'
+                ? '0 0 6px rgba(34,197,94,0.8)'
+                : connectionStatus === 'simulation'
+                ? '0 0 6px rgba(234,179,8,0.6)'
+                : '0 0 6px rgba(239,68,68,0.8)',
+            }} />
+            
+            {/* Text */}
+            <span style={{
+              fontSize: '10px',
+              fontWeight: '700',
+              letterSpacing: '0.08em',
+              color: connectionStatus === 'live' 
+                ? '#22C55E' 
+                : connectionStatus === 'simulation'
+                ? '#EAB308'
+                : '#EF4444',
+            }}>
+              {connectionStatus === 'live' && 'LIVE'}
+              {connectionStatus === 'simulation' && 'SIMULATION'}
+              {connectionStatus === 'disconnected' && 'DISCONNECTED'}
+            </span>
+          </div>
         </div>
 
         <p
@@ -328,7 +339,7 @@ export function Sidebar() {
         >
           Recent Reports
         </p>
-        <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+        <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
           {recentReports.map(report => (
             <div
               key={report.id}
@@ -336,7 +347,7 @@ export function Sidebar() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                padding: '6px 0',
+                padding: '10px 0',
                 borderBottom: '1px solid rgba(255,255,255,0.05)',
               }}
             >
@@ -372,7 +383,7 @@ export function Sidebar() {
 
               {/* Status badge */}
               <span style={{
-                padding: '1px 5px',
+                padding: '2px 6px',
                 borderRadius: '4px',
                 background: getStatusColor(report.status),
                 color: 'white',
@@ -420,7 +431,7 @@ export function Sidebar() {
 
         {volunteersOpen && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {MOCK_VOLUNTEERS.map(vol => (
+            {MOCK_VOLUNTEERS.slice(0, 4).map(vol => (
               <div
                 key={vol.id}
                 style={{
@@ -488,30 +499,14 @@ export function Sidebar() {
         <button
           onClick={handleInjectChaos}
           disabled={isInjecting}
-          style={{
-            width: '100%',
-            padding: '12px',
-            background: isInjecting
-              ? 'rgba(255,59,59,0.3)'
-              : 'rgba(255,59,59,0.15)',
-            border: '1px solid rgba(255,59,59,0.6)',
-            borderRadius: '8px',
-            color: '#FF3B3B',
-            fontSize: '12px',
-            fontWeight: 700,
-            letterSpacing: '1px',
-            cursor: isInjecting ? 'not-allowed' : 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            boxShadow: isInjecting ? 'none' : '0 0 12px rgba(255,59,59,0.3)',
-            transition: 'all 0.2s ease',
-            fontFamily: 'var(--font-mono)',
-          }}
+          className={`w-full p-3 rounded-lg border flex items-center justify-center gap-2 font-mono text-xs font-bold transition-all duration-300 ${
+            isInjecting 
+              ? 'bg-red-500/30 border-red-500/50 text-red-500 cursor-not-allowed' 
+              : 'bg-red-500/10 border-red-500/30 text-red-500 hover:bg-red-500/20 hover:border-red-500/60 shadow-[0_0_15px_rgba(239,68,68,0.1)] active:scale-95'
+          }`}
         >
-          <Zap size={14} />
-          {chaosProgress || 'INJECT CHAOS'}
+          <Zap size={14} className={isInjecting ? 'animate-pulse' : ''} />
+          {chaosProgress || 'INJECT MASSIVE CHAOS (ALT+C)'}
         </button>
       </div>
 
