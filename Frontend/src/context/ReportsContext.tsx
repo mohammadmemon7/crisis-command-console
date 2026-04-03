@@ -20,11 +20,13 @@ export type ApiVolunteer = {
   phone?: string
   skills?: string[]
   area?: string
+  coordinates?: { lat: number; lng: number }
   location?: { lat: number; lng: number }
   homeLocation?: { lat: number; lng: number }
   status?: 'free' | 'busy'
   isAvailable?: boolean
   activeCase?: string | null
+  currentTask?: string | null
 }
 
 interface ReportsContextType {
@@ -62,8 +64,6 @@ const CHAOS_MESSAGES: string[] = [
   "Ghatkopar east mein building basement flooded, 8 cars doob gayi",
   "Vikhroli check naka completely submerged, rescue boats needed now"
 ]
-
-const CHAOS_DEMO_NAMES = ['Rahul', 'Amit', 'Priya', 'Sneha', 'Arjun', 'Neha']
 
 const MUMBAI_LOCATIONS = [
   { name: 'Kurla Station', lat: 19.0726, lng: 72.8795 },
@@ -181,10 +181,7 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
       const payload = {
         rawMessage: msg,
         source: 'app',
-        coordinates: { lat: loc.lat + latOffset, lng: loc.lng + lngOffset },
-        name: CHAOS_DEMO_NAMES[Math.floor(Math.random() * CHAOS_DEMO_NAMES.length)],
-        priority: Math.floor(Math.random() * 5) + 1,
-        chaosInject: true
+        coordinates: { lat: loc.lat + latOffset, lng: loc.lng + lngOffset }
       }
 
       try {

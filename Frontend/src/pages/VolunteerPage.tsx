@@ -170,8 +170,9 @@ export default function VolunteerPage() {
             name: v.name,
             area: v.area,
             skills: v.skills,
-            location: v.location,
+            coordinates: v.location,
             isAvailable: v.isAvailable,
+            status: v.isAvailable ? 'free' : 'busy',
           }))
         : apiVolunteers,
     [apiVolunteers]
@@ -431,7 +432,10 @@ export default function VolunteerPage() {
               </Marker>
               
               <Marker
-                position={[selectedVolunteer!.location!.lat, selectedVolunteer!.location!.lng]}
+                position={[
+                  (selectedVolunteer!.coordinates || selectedVolunteer!.location)!.lat,
+                  (selectedVolunteer!.coordinates || selectedVolunteer!.location)!.lng
+                ]}
                 icon={L.divIcon({
                   className:'',
                   html:`<div style="width:14px;height:14px;background:#57CEEB;border-radius:50%;

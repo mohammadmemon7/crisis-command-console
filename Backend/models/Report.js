@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const reportSchema = new mongoose.Schema({
-  name:        { type: String, default: 'Anonymous User' },
+  name:        { type: String, required: true },
   rawMessage:  { type: String, required: true },
   location:    { type: String, required: true },
   coordinates: {

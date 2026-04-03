@@ -46,7 +46,7 @@ export function Sidebar() {
         name: v.name,
         area: v.area,
         skills: v.skills,
-        location: v.location,
+        coordinates: v.location,
         isAvailable: v.isAvailable,
         status: v.isAvailable ? 'free' : 'busy',
       }))
@@ -383,7 +383,7 @@ export function Sidebar() {
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                 }}>
-                  {(report as any).name || 'Reporter'}
+                  {(report as any).name}
                 </div>
                 <div style={{
                   fontSize: '10px',

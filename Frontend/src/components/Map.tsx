@@ -12,9 +12,14 @@ function hasValidCoords(r: Report): boolean {
   return !!(c && typeof c.lat === 'number' && typeof c.lng === 'number' && !Number.isNaN(c.lat) && !Number.isNaN(c.lng))
 }
 
+function volLatLng(v: ApiVolunteer): { lat: number; lng: number } | null {
+  const c = v.coordinates || v.location
+  if (!c || typeof c.lat !== 'number' || typeof c.lng !== 'number') return null
+  return c
+}
+
 function volHasLocation(v: ApiVolunteer): boolean {
-  const loc = v.location
-  return !!(loc && typeof loc.lat === 'number' && typeof loc.lng === 'number')
+  return volLatLng(v) != null
 }
 
 // LEAFLET ICON FIX
@@ -264,7 +269,7 @@ const Map = () => {
           return (
             <Polyline
               key={`line-${report.id || (report as any)._id}`}
-              positions={[[assignedVol.location!.lat, assignedVol.location!.lng], [(report as any).coordinates.lat, (report as any).coordinates.lng]]}
+              positions={[[volLatLng(assignedVol)!.lat, volLatLng(assignedVol)!.lng], [(report as any).coordinates.lat, (report as any).coordinates.lng]]}
               pathOptions={{ color: '#2563EB', weight: 2, dashArray: '5,10', opacity: 0.7 }}
             />
           )
@@ -317,11 +322,11 @@ const Map = () => {
           const busy = vol.status === 'busy' || vol.isAvailable === false
           const volIcon = L.divIcon({
             className: '',
-            html: `<div style="position:relative;display:inline-block;"><div style="width:26px;height:26px;border-radius:50%;background:${busy ? '#F97316' : '#3B82F6'};border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:bold;">V</div>${busy ? `<span style="position:absolute;top:-6px;right:-12px;background:#C2410C;color:white;font-size:7px;font-weight:bold;padding:1px 3px;border-radius:3px;white-space:nowrap;z-index:10;">BUSY</span>` : `<span style="position:absolute;top:-6px;right:-12px;background:#1D4ED8;color:white;font-size:7px;font-weight:bold;padding:1px 3px;border-radius:3px;white-space:nowrap;z-index:10;">FREE</span>`}</div>`,
+            html: `<div style="position:relative;display:inline-block;"><div style="width:26px;height:26px;border-radius:50%;background:${busy ? '#F97316' : '#22C55E'};border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:bold;">V</div>${busy ? `<span style="position:absolute;top:-6px;right:-12px;background:#C2410C;color:white;font-size:7px;font-weight:bold;padding:1px 3px;border-radius:3px;white-space:nowrap;z-index:10;">BUSY</span>` : `<span style="position:absolute;top:-6px;right:-12px;background:#15803D;color:white;font-size:7px;font-weight:bold;padding:1px 3px;border-radius:3px;white-space:nowrap;z-index:10;">FREE</span>`}</div>`,
             iconSize: [26, 26], iconAnchor: [13, 13],
           })
           return (
-            <Marker key={`vol-${vol._id}`} position={[vol.location!.lat, vol.location!.lng]} icon={volIcon}>
+            <Marker key={`vol-${vol._id}`} position={[volLatLng(vol)!.lat, volLatLng(vol)!.lng]} icon={volIcon}>
               <Popup>
                 <div style={{ fontFamily: 'sans-serif', minWidth: '160px' }}>
                   <div style={{ fontWeight: 'bold', fontSize: '13px' }}>👤 {vol.name}</div>

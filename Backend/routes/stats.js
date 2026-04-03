@@ -8,7 +8,7 @@ router.get('/api/stats', async (req, res) => {
   try {
     const [active, volunteersDeployed, totalResolvedLifetime, avgAgg] = await Promise.all([
       Report.countDocuments({ status: { $in: ['pending', 'assigned'] } }),
-      Volunteer.countDocuments({ isAvailable: false }),
+      Volunteer.countDocuments({ status: 'busy' }),
       ResolutionLog.countDocuments(),
       ResolutionLog.aggregate([
         { $group: { _id: null, avg: { $avg: '$responseTimeMinutes' } } }
