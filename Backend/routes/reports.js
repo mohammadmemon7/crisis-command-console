@@ -9,8 +9,8 @@ const { getIO } = require('../socket');
 
 // POST /api/reports (mounted at /api/reports)
 router.post('/', async (req, res) => {
-    console.log("API HIT: POST /api/reports");
-    console.log("BODY:", req.body);
+    console.log("🔥 BACKEND HIT");
+    console.log("📦 DATA:", req.body);
     try {
         const message = req.body.message || req.body.rawMessage;
         const { source, coordinates } = req.body;

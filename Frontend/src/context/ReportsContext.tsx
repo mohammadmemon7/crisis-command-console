@@ -3,9 +3,9 @@ import { MOCK_REPORTS } from '../mock/mockData'
 import socketService from '../services/socket'
 import type { Report } from '../mock/mockData'
 
+import { API_URL } from '../config'
+
 const MOCK_MODE = false
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL 
-  || 'https://crisis-command-console-production.up.railway.app'
 
 interface Stats {
   active: number
@@ -79,38 +79,37 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
   })
 
   // Load existing reports and volunteers on mount
-  useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        const [repRes, volRes] = await Promise.all([
-          fetch(`${BACKEND_URL}/api/reports`),
-          fetch(`${BACKEND_URL}/api/volunteers`)
-        ])
-        
-        const { reports: initialReports } = await repRes.json()
-        const { volunteers } = await volRes.json()
-        
-        setReports(initialReports || [])
-        
-        // Calculate stats
-        const activeCount = initialReports.filter((r: any) => 
-          r.status === 'pending' || r.status === 'assigned'
-        ).length
-        const resolvedCount = initialReports.filter((r: any) => r.status === 'resolved').length
-        const deployedCount = volunteers.filter((v: any) => !v.isAvailable).length
-        
-        setStats({
-          active: activeCount,
-          resolved: resolvedCount,
-          volunteersDeployed: deployedCount
-        })
-      } catch (err) {
-        console.error('Failed to load initial data:', err)
-        // Fallback to mock data if backend fails
-        setReports(MOCK_REPORTS)
-      }
+  const loadInitialData = async () => {
+    try {
+      const [repRes, volRes] = await Promise.all([
+        fetch(`${API_URL}/api/reports`),
+        fetch(`${API_URL}/api/volunteers`)
+      ])
+      
+      const { reports: initialReports } = await repRes.json()
+      const { volunteers } = await volRes.json()
+      
+      setReports(initialReports || [])
+      
+      // Calculate stats from real data
+      const activeCount = (initialReports || []).filter((r: any) => 
+        r.status === 'pending' || r.status === 'assigned'
+      ).length
+      const resolvedCount = (initialReports || []).filter((r: any) => r.status === 'resolved').length
+      const deployedCount = (volunteers || []).filter((v: any) => !v.isAvailable).length
+      
+      setStats({
+        active: activeCount,
+        resolved: resolvedCount,
+        volunteersDeployed: deployedCount
+      })
+    } catch (err) {
+      console.error('Failed to load initial data:', err)
+      if (MOCK_MODE) setReports(MOCK_REPORTS)
     }
-    
+  }
+
+  useEffect(() => {
     if (!MOCK_MODE) {
       loadInitialData()
     } else {
@@ -118,42 +117,23 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const addReport = (report: Report) => {
+  const addReport = (report: any) => {
     setReports(prev => {
-      // Avoid duplicates from socket
-      if (prev.find(r => r.id === report.id || r._id === report._id || r.id === report._id)) return prev
+      if (prev.find(r => r.id === report.id || (r as any)._id === report._id || r.id === report._id)) return prev
       return [report, ...prev]
     })
-    setStats(prev => ({ ...prev, active: prev.active + 1 }))
+    // REMOVED manual stats increment to ensure sync with DB
   }
 
   const updateReport = (id: string, update: Partial<Report>) => {
     setReports(prev =>
-      prev.map(r => (r.id === id || r._id === id) ? { ...r, ...update } : r)
+      prev.map(r => (r.id === id || (r as any)._id === id) ? { ...r, ...update } : r)
     )
-    if (update.status === 'resolved') {
-      setStats(prev => ({
-        ...prev,
-        resolved: prev.resolved + 1,
-        active: Math.max(0, prev.active - 1),
-        volunteersDeployed: Math.max(0, prev.volunteersDeployed - 1)
-      }))
-    }
-    if (update.status === 'assigned') {
-      setStats(prev => ({
-        ...prev,
-        volunteersDeployed: prev.volunteersDeployed + 1,
-      }))
-    }
+    // Stats will eventually sync via socket or refresh, removing manual update
   }
 
   const resetReports = () => {
     setReports(MOCK_REPORTS)
-    setStats({
-      active: MOCK_REPORTS.filter(r => r.status !== 'resolved').length,
-      resolved: MOCK_REPORTS.filter(r => r.status === 'resolved').length,
-      volunteersDeployed: MOCK_REPORTS.filter(r => r.status === 'assigned').length,
-    })
   }
 
   const injectChaos = async (onProgress?: (progress: string) => void) => {
@@ -164,40 +144,26 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
       const lngOffset = (Math.random() - 0.5) * 0.008
 
       const payload = {
-        message: msg,
+        rawMessage: msg,
         source: 'app',
         coordinates: { lat: loc.lat + latOffset, lng: loc.lng + lngOffset }
       }
 
       try {
-        if (MOCK_MODE) {
-          // Mock version
-          const report: Report = {
-            id: `chaos_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-            location: loc.name,
-            coordinates: payload.coordinates,
-            urgency: (Math.ceil(Math.random() * 5)) as 1 | 2 | 3 | 4 | 5,
-            peopleCount: Math.ceil(Math.random() * 10),
-            needs: ['rescue'],
-            status: 'pending',
-            source: 'app',
-            createdAt: new Date(),
-          }
-          addReport(report)
-        } else {
-          // Real backend version
-          await fetch(`${BACKEND_URL}/api/report`, {
+        if (!MOCK_MODE) {
+          await fetch(`${API_URL}/api/reports`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           })
         }
 
+
         if (onProgress) {
           if (i < CHAOS_MESSAGES.length - 1) {
-            onProgress(`Sending ${i + 2}/20...`)
+            onProgress(`Sending ${i + 2}/${CHAOS_MESSAGES.length}...`)
           } else {
-            onProgress('Chaos Injected! 20 Reports Sent')
+            onProgress(`Chaos Injected! ${CHAOS_MESSAGES.length} Reports Sent`)
           }
         }
       } catch (err) {
@@ -213,7 +179,6 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
       addReport(report)
     })
     socketService.on('reportUpdated', (update: any) => {
-      // Backend format: { reportId, status, volunteerName }
       const id = update.reportId || update.id
       updateReport(id, { 
         status: update.status,
@@ -235,3 +200,4 @@ export function useReports(): ReportsContextType {
   if (!ctx) throw new Error('useReports must be used inside ReportsProvider')
   return ctx
 }
+

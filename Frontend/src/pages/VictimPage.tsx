@@ -228,30 +228,32 @@ export default function VictimPage() {
   }, [reportId])
 
   const handleSubmit = async () => {
-    if (!message.trim()) return
-    setState('submitting')
-
     try {
+      console.log("🚀 Sending request to backend...");
+      setState('submitting');
+
       const res = await fetch(`${API_URL}/api/reports`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
           rawMessage: message,
-          source: "app",
-        }),
+          source: "app"
+        })
       });
+
+      console.log("📡 Response status:", res.status);
 
       if (!res.ok) {
         const text = await res.text();
-        console.error("Server error:", text);
-        throw new Error("Backend error");
+        console.error("❌ Backend error:", text);
+        throw new Error("Backend failed");
       }
 
       const data = await res.json();
-      console.log("✅ Report saved:", data);
-      
+      console.log("✅ Saved in DB:", data);
+
       if (data.report && data.report._id) {
         setReportId(data.report._id)
         if (data.assigned === true) {
@@ -269,11 +271,11 @@ export default function VictimPage() {
       alert("Report submitted successfully");
 
     } catch (err) {
-      console.error("Submit failed:", err);
+      console.error("❌ Submit failed:", err);
       alert("Submission failed");
       setState('idle');
     }
-  }
+  };
 
   const handleSOS = () => {
     if (navigator.geolocation) {
