@@ -25,7 +25,8 @@ const volunteerSchema = new mongoose.Schema({
     ref: 'Report',
     default: null
   },
-  totalResolved: { type: Number, default: 0 }
+  totalResolved: { type: Number, default: 0 },
+  socketId:      { type: String, default: null }
 });
 
 module.exports = mongoose.model('Volunteer', volunteerSchema);

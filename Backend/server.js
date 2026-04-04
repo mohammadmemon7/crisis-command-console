@@ -103,20 +103,36 @@ mongoose.connect(process.env.MONGODB_URI)
           }
 
           if (nearest) {
-            report.status = "assigned";
-            report.assignedTo = nearest._id;
-            report.startedAt = new Date();
-            report.assignedAt = new Date(); // 🔥 TRACK ASSIGNMENT TIME
+            // Check if Chaos Mode is active (assuming chaos mode means auto-assign without popup)
+            // You can implement a chaosMode check here if needed. 
+            // For now, let's trigger the popup if the volunteer is online.
+            
+            if (nearest.socketId) {
+              const io = socketManager.getIO();
+              io.to(nearest.socketId).emit("newRequest", {
+                reportId: report._id,
+                location: report.location || "Unknown Location",
+                urgency: report.priority || 3,
+                peopleCount: report.peopleCount || 1
+              });
+              console.log(`Alerted volunteer ${nearest.name} for report ${report._id}`);
+            } else {
+              // Auto-assign if volunteer is offline or in "Chaos" (no popup possible)
+              report.status = "assigned";
+              report.assignedTo = nearest._id;
+              report.startedAt = new Date();
+              report.assignedAt = new Date();
 
-            nearest.status = "busy";
-            nearest.currentTask = report._id;
+              nearest.status = "busy";
+              nearest.currentTask = report._id;
 
-            await report.save();
-            await nearest.save();
+              await report.save();
+              await nearest.save();
+              console.log(`Auto-assigned report ${report._id} to offline volunteer ${nearest.name}`);
+            }
             
             // Remove assigned volunteer from local list for this tick
             volunteers.splice(volunteers.indexOf(nearest), 1);
-            console.log(`Assigned report ${report._id} to NEAREST volunteer ${nearest.name}`);
           }
         }
       } catch (err) {

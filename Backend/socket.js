@@ -29,9 +29,18 @@ const init = (httpServer) => {
 
   io.on('connection', (socket) => {
     console.log('Client connected:', socket.id);
-    socket.on('disconnect', () => 
-      console.log('Client disconnected:', socket.id)
-    );
+
+    socket.on('registerVolunteer', async (volunteerId) => {
+      const Volunteer = require('./models/Volunteer');
+      await Volunteer.findByIdAndUpdate(volunteerId, { socketId: socket.id });
+      console.log(`Volunteer ${volunteerId} registered with socket ${socket.id}`);
+    });
+
+    socket.on('disconnect', async () => {
+      console.log('Client disconnected:', socket.id);
+      const Volunteer = require('./models/Volunteer');
+      await Volunteer.findOneAndUpdate({ socketId: socket.id }, { socketId: null });
+    });
   });
   return io;
 };
