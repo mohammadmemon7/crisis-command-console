@@ -81,6 +81,24 @@ const STYLES = {
     fontWeight: 600,
     cursor: 'pointer',
     marginTop: '20px',
+  },
+  backBtn: {
+    alignSelf: 'flex-start',
+    color: 'rgba(255, 255, 255, 0.6)',
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: '14px',
+    marginBottom: '10px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '5px',
+  },
+  profileRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    padding: '12px 0',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
   }
 }
 
@@ -95,18 +113,36 @@ export default function VolunteerPage() {
     if (saved) setUser(JSON.parse(saved))
   }, [])
 
+  const getLocation = (): Promise<{ lat: number; lng: number }> => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error("Geolocation not supported"))
+        return
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (err) => reject(err),
+        { enableHighAccuracy: true }
+      )
+    })
+  }
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    console.log("Sending POST request to:", `${API_URL}/api/volunteer/login`);
+    
     try {
+      toast.info("Requesting location permission...")
+      const coords = await getLocation()
+      
+      console.log("Sending POST request to:", `${API_URL}/api/volunteer/login`);
       const res = await fetch(`${API_URL}/api/volunteer/login`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        body: JSON.stringify(form)
+        body: JSON.stringify({ ...form, coordinates: coords })
       })
 
       if (!res.ok) {
@@ -120,16 +156,13 @@ export default function VolunteerPage() {
         localStorage.setItem('volunteer', JSON.stringify(data.volunteer))
         setUser(data.volunteer)
         toast.success("Successfully logged in!", {
-          description: `Welcome back, ${data.volunteer.name}. Redirecting to command center...`
+          description: `Welcome, ${data.volunteer.name}. Mission active.`
         })
-        setTimeout(() => {
-          navigate('/')
-        }, 1500)
       }
     } catch (err: any) {
       console.error('Login error:', err)
       toast.error("Login failed", {
-        description: err.message || "Please check your connection or try again later."
+        description: err.code === 1 ? "Location permission is required to join!" : err.message
       })
     } finally {
       setLoading(false)
@@ -145,6 +178,9 @@ export default function VolunteerPage() {
     return (
       <div style={STYLES.page}>
         <div style={STYLES.card}>
+          <button onClick={() => navigate(-1)} style={STYLES.backBtn}>
+            ← Back
+          </button>
           <div style={STYLES.title}>CRISISNET VOLUNTEER</div>
           
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -182,7 +218,7 @@ export default function VolunteerPage() {
             </div>
 
             <button type="submit" style={STYLES.button} disabled={loading}>
-              {loading ? 'LOGGING IN...' : 'JOIN MISSION'}
+              {loading ? 'GETTING LOCATION...' : 'JOIN MISSION'}
             </button>
           </form>
         </div>
@@ -193,35 +229,58 @@ export default function VolunteerPage() {
   return (
     <div style={STYLES.page}>
       <div style={STYLES.card}>
-        <div style={STYLES.title}>MISSION ACTIVE</div>
+        <div style={STYLES.title}>VOLUNTEER PROFILE</div>
         
-        <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div style={{ fontSize: '18px', fontWeight: 700 }}>Welcome, {user.name}</div>
-          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)' }}>📍 Assigned Area: {user.area}</div>
-          
-          <div style={{ 
-            marginTop: '20px',
-            padding: '20px',
-            background: 'rgba(0, 200, 81, 0.1)',
-            border: '1px solid rgba(0, 200, 81, 0.2)',
-            borderRadius: '16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '10px'
-          }}>
-            <div style={{ 
-              width: '10px', height: '10px', background: '#00C851', borderRadius: '50%',
-              boxShadow: '0 0 10px #00C851'
-            }} />
-            <span style={{ color: '#00C851', fontWeight: 700, fontSize: '14px' }}>STATUS: READY & FREE</span>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={STYLES.profileRow}>
+            <span style={STYLES.label}>Name</span>
+            <span style={{ fontWeight: 600 }}>{user.name}</span>
+          </div>
+          <div style={STYLES.profileRow}>
+            <span style={STYLES.label}>Phone</span>
+            <span style={{ fontWeight: 600 }}>{user.phone}</span>
+          </div>
+          <div style={STYLES.profileRow}>
+            <span style={STYLES.label}>Area</span>
+            <span style={{ fontWeight: 600 }}>{user.area}</span>
+          </div>
+          <div style={STYLES.profileRow}>
+            <span style={STYLES.label}>Status</span>
+            <span style={{ 
+              fontWeight: 700, 
+              color: user.status === 'busy' ? '#FF8C00' : '#00C851',
+              textTransform: 'uppercase'
+            }}>
+              {user.status}
+            </span>
           </div>
 
-          <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginTop: '10px', lineHeight: '1.6' }}>
-            Jab koi emergency report aayegi, hum aapko nearest case assign karenge. Please app open rakhein.
-          </p>
+          <div style={{ 
+            marginTop: '30px',
+            padding: '20px',
+            background: user.status === 'busy' ? 'rgba(255, 140, 0, 0.1)' : 'rgba(0, 200, 81, 0.1)',
+            border: `1px solid ${user.status === 'busy' ? 'rgba(255, 140, 0, 0.2)' : 'rgba(0, 200, 81, 0.2)'}`,
+            borderRadius: '16px',
+            textAlign: 'center'
+          }}>
+            <div style={{ 
+              display: 'inline-block',
+              width: '10px', height: '10px', 
+              background: user.status === 'busy' ? '#FF8C00' : '#00C851', 
+              borderRadius: '50%',
+              marginRight: '10px',
+              boxShadow: `0 0 10px ${user.status === 'busy' ? '#FF8C00' : '#00C851'}`
+            }} />
+            <span style={{ 
+              color: user.status === 'busy' ? '#FF8C00' : '#00C851', 
+              fontWeight: 700, 
+              fontSize: '14px' 
+            }}>
+              {user.status === 'busy' ? 'MISSION IN PROGRESS' : 'READY & AVAILABLE'}
+            </span>
+          </div>
 
-          <button onClick={logout} style={STYLES.logoutBtn}>LOGOUT</button>
+          <button onClick={logout} style={STYLES.logoutBtn}>LOGOUT FROM SESSION</button>
         </div>
       </div>
     </div>
