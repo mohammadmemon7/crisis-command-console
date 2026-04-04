@@ -79,16 +79,25 @@ mongoose.connect(process.env.MONGODB_URI)
     setInterval(async () => {
       try {
         const reports = await Report.find({ status: { $in: ["pending", "sms_pending"] }, mode: "chaos" });
-        const volunteers = await Volunteer.find({ status: "free" });
+        const freeVolunteers = await Volunteer.find({ status: "free" });
+
+        if (reports.length > 0 && freeVolunteers.length > 0) {
+          console.log(`[Assignment Engine] Processing ${reports.length} chaos reports with ${freeVolunteers.length} free volunteers`);
+        }
 
         for (let report of reports) {
-          // 🔥 STEP 5: PREVENT DUPLICATE ASSIGNMENT
           if (report.assignedTo) continue;
+          if (freeVolunteers.length === 0) break;
 
           let nearest = null;
           let minDist = Infinity;
+          let nearestIdx = -1;
 
-          for (let vol of volunteers) {
+          for (let i = 0; i < freeVolunteers.length; i++) {
+            const vol = freeVolunteers[i];
+            if (!vol.coordinates || vol.coordinates.lat == null || vol.coordinates.lng == null) continue;
+            if (!report.coordinates || report.coordinates.lat == null || report.coordinates.lng == null) continue;
+
             const dist = getDistance(
               report.coordinates.lat,
               report.coordinates.lng,
@@ -99,10 +108,13 @@ mongoose.connect(process.env.MONGODB_URI)
             if (dist < minDist) {
               minDist = dist;
               nearest = vol;
+              nearestIdx = i;
             }
           }
 
           if (nearest) {
+            console.log(`[Assignment Engine] Nearest found: ${nearest.name} at distance ${minDist.toFixed(2)}km`);
+            
             // Chaos mode always auto-assigns immediately
             report.status = "assigned";
             report.assignedTo = nearest._id;
@@ -114,10 +126,19 @@ mongoose.connect(process.env.MONGODB_URI)
 
             await report.save();
             await nearest.save();
-            console.log(`Auto-assigned report ${report._id} to volunteer ${nearest.name} (CHAOS MODE)`);
             
             // Remove assigned volunteer from local list for this tick
-            volunteers.splice(volunteers.indexOf(nearest), 1);
+            freeVolunteers.splice(nearestIdx, 1);
+
+            const socketIo = socketManager.getIO();
+            if (socketIo) {
+              socketIo.emit('caseAccepted', {
+                reportId: report._id,
+                volunteerName: nearest.name,
+                eta: '5'
+              });
+              socketIo.emit('statsUpdated');
+            }
           }
         }
       } catch (err) {

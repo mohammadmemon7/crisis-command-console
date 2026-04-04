@@ -6,44 +6,76 @@ const { getIO } = require('../socket');
 const TASK_SECONDS = 30;
 const TICK_MS = 2000;
 
+function getDistance(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 async function assignTick() {
   try {
     const pending = await Report.find({ status: 'pending', mode: 'chaos' }).sort({ createdAt: 1 });
+    const availableVolunteers = await Volunteer.find({ status: 'free', isAvailable: true });
     const io = getIO();
 
     for (const report of pending) {
-      const volunteer = await Volunteer.findOne({
-        status: 'free',
-        isAvailable: true
-      }).sort({ createdAt: 1 });
+      if (!report.coordinates || report.coordinates.lat == null) continue;
+      if (availableVolunteers.length === 0) break;
 
-      if (!volunteer) break;
+      let nearest = null;
+      let minDist = Infinity;
+      let nearestIdx = -1;
 
-      if (volunteer.homeLocation == null || volunteer.homeLocation.lat == null) {
-        volunteer.homeLocation = {
-          lat: volunteer.coordinates.lat,
-          lng: volunteer.coordinates.lng
-        };
+      for (let i = 0; i < availableVolunteers.length; i++) {
+        const vol = availableVolunteers[i];
+        if (!vol.coordinates || vol.coordinates.lat == null) continue;
+
+        const dist = getDistance(
+          report.coordinates.lat,
+          report.coordinates.lng,
+          vol.coordinates.lat,
+          vol.coordinates.lng
+        );
+
+        if (dist < minDist) {
+          minDist = dist;
+          nearest = vol;
+          nearestIdx = i;
+        }
       }
 
-      volunteer.status = 'busy';
-      volunteer.isAvailable = false;
-      volunteer.currentTask = report._id;
-      volunteer.activeCase = report._id;
-      await volunteer.save();
+      if (nearest) {
+        if (nearest.homeLocation == null || nearest.homeLocation.lat == null) {
+          nearest.homeLocation = {
+            lat: nearest.coordinates.lat,
+            lng: nearest.coordinates.lng
+          };
+        }
 
-      report.status = 'assigned';
-      report.assignedTo = volunteer._id;
-      report.startedAt = new Date();
-      await report.save();
+        nearest.status = 'busy';
+        nearest.isAvailable = false;
+        nearest.currentTask = report._id;
+        nearest.activeCase = report._id;
+        await nearest.save();
 
-      if (io) {
-        io.emit('caseAccepted', {
-          reportId: report._id,
-          volunteerName: volunteer.name,
-          eta: '5'
-        });
-        io.emit('statsUpdated');
+        report.status = 'assigned';
+        report.assignedTo = nearest._id;
+        report.startedAt = new Date();
+        await report.save();
+
+        // Remove assigned volunteer from list for this tick
+        availableVolunteers.splice(nearestIdx, 1);
+
+        if (io) {
+          io.emit('caseAccepted', {
+            reportId: report._id,
+            volunteerName: nearest.name,
+            eta: '5'
+          });
+          io.emit('statsUpdated');
+        }
       }
     }
   } catch (e) {

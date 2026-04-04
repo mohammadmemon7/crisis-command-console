@@ -166,6 +166,7 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
         rawMessage: msg,
         source: 'app',
         mode: 'chaos',
+        priority: Math.floor(Math.random() * 5) + 1,
         coordinates: { lat: loc.lat + latOffset, lng: loc.lng + lngOffset }
       }
 

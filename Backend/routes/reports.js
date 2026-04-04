@@ -46,7 +46,7 @@ router.post('/', async (req, res) => {
       needs,
       mode: req.body.mode || 'manual',
       peopleCount: aiResult.peopleCount || 1,
-      priority: aiResult.urgency != null ? aiResult.urgency : 3
+      priority: req.body.priority != null ? Number(req.body.priority) : (aiResult.urgency != null ? aiResult.urgency : 3)
     });
 
     if (savedReport.mode === 'manual') {
