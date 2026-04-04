@@ -23,7 +23,8 @@ const reportSchema = new mongoose.Schema({
   assignedTo:    { type: mongoose.Schema.Types.ObjectId, ref: 'Volunteer', default: null },
   startedAt:     { type: Date, default: null },
   assignedAt:    { type: Date, default: null },
-  resolvedAt:    { type: Date, default: null }
+  resolvedAt:    { type: Date, default: null },
+  mode:          { type: String, enum: ['manual', 'chaos'], default: 'manual' }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Report', reportSchema);

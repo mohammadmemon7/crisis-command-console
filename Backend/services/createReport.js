@@ -14,6 +14,7 @@ const createReport = async (data) => {
     source: data.source || 'app',
     senderPhone: data.senderPhone || null,
     status: 'pending',
+    mode: data.mode || 'manual',
     urgency: data.priority != null ? data.priority : (data.urgency != null ? data.urgency : 3)
   });
 

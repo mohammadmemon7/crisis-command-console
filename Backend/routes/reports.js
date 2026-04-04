@@ -44,9 +44,17 @@ router.post('/', async (req, res) => {
       location: locationLabel,
       source: req.body.source || 'app',
       needs,
+      mode: req.body.mode || 'manual',
       peopleCount: aiResult.peopleCount || 1,
       priority: aiResult.urgency != null ? aiResult.urgency : 3
     });
+
+    if (savedReport.mode === 'manual') {
+      const io = getIO();
+      if (io) {
+        io.emit('newManualRequest', savedReport);
+      }
+    }
 
     const reportOut = await Report.findById(savedReport._id)
       .populate('assignedTo', 'name phone coordinates status currentTask isAvailable')
@@ -88,10 +96,21 @@ router.patch('/:id/respond', async (req, res) => {
       report.assignedAt = new Date();
       report.startedAt = new Date();
 
-      await Volunteer.findByIdAndUpdate(volunteerId, {
+      const volunteer = await Volunteer.findByIdAndUpdate(volunteerId, {
         status: "busy",
-        currentTask: report._id
-      });
+        currentTask: report._id,
+        isAvailable: false
+      }, { new: true });
+
+      const io = getIO();
+      if (io) {
+        io.emit('caseAccepted', {
+          reportId: report._id,
+          volunteerName: volunteer.name,
+          eta: '8'
+        });
+        io.emit('statsUpdated');
+      }
     } else if (action === "reject") {
       report.status = "pending";
       report.assignedTo = null;

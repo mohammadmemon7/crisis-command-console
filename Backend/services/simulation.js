@@ -8,7 +8,7 @@ const TICK_MS = 2000;
 
 async function assignTick() {
   try {
-    const pending = await Report.find({ status: 'pending' }).sort({ createdAt: 1 });
+    const pending = await Report.find({ status: 'pending', mode: 'chaos' }).sort({ createdAt: 1 });
     const io = getIO();
 
     for (const report of pending) {
@@ -38,10 +38,10 @@ async function assignTick() {
       await report.save();
 
       if (io) {
-        io.emit('reportUpdated', {
+        io.emit('caseAccepted', {
           reportId: report._id,
-          status: 'assigned',
-          volunteerName: volunteer.name
+          volunteerName: volunteer.name,
+          eta: '5'
         });
         io.emit('statsUpdated');
       }
@@ -111,6 +111,7 @@ async function resolveTick() {
       await Report.findByIdAndDelete(rid);
 
       if (io) {
+        io.emit('caseResolved', { reportId: rid });
         io.emit('reportDeleted', { reportId: rid });
         io.emit('statsUpdated');
       }
