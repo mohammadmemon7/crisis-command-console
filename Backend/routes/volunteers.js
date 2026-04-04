@@ -35,4 +35,31 @@ router.post('/api/volunteer', async (req, res) => {
   }
 });
 
+router.post('/api/volunteer/login', async (req, res) => {
+  try {
+    const { name, phone, area, lat, lng } = req.body;
+    let volunteer = await Volunteer.findOne({ phone });
+
+    if (!volunteer) {
+      volunteer = await Volunteer.create({
+        name,
+        phone,
+        area,
+        coordinates: { lat: lat || 19.076, lng: lng || 72.877 },
+        status: "free"
+      });
+    } else {
+      // Update coordinates on login if provided
+      if (lat && lng) {
+        volunteer.coordinates = { lat, lng };
+        await volunteer.save();
+      }
+    }
+
+    res.json({ volunteer });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

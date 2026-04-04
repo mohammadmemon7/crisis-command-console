@@ -105,7 +105,6 @@ mongoose.connect(process.env.MONGODB_URI)
             report.startedAt = new Date();
 
             nearest.status = "busy";
-            nearest.isAvailable = false;
             nearest.currentTask = report._id;
 
             await report.save();
@@ -164,7 +163,6 @@ mongoose.connect(process.env.MONGODB_URI)
 
             if (vol) {
               vol.status = "free";
-              vol.isAvailable = true;
               vol.currentTask = null;
               await vol.save();
             }

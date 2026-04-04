@@ -21,7 +21,7 @@ router.get('/api/stats', async (req, res) => {
 
     res.json({
       resolved: stats.totalResolved,
-      avgResponseTime: avgMinutes.toFixed(2),
+      avgTime: avgMinutes.toFixed(2),
       active,
       volunteersDeployed
     });
