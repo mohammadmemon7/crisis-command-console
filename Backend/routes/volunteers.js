@@ -46,14 +46,20 @@ router.post('/api/volunteer/login', async (req, res) => {
         phone,
         area,
         coordinates: { lat: lat || 19.076, lng: lng || 72.877 },
-        status: "free"
+        status: "free",
+        isAvailable: true
       });
     } else {
       // Update coordinates on login if provided
       if (lat && lng) {
         volunteer.coordinates = { lat, lng };
-        await volunteer.save();
       }
+      // If no current task, ensure they are free
+      if (!volunteer.currentTask) {
+        volunteer.status = "free";
+        volunteer.isAvailable = true;
+      }
+      await volunteer.save();
     }
 
     res.json({ volunteer });

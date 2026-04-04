@@ -19,11 +19,17 @@ router.post("/login", async (req, res) => {
         phone,
         area,
         status: "free",
+        isAvailable: true,
         coordinates: coordinates
       });
       console.log("New volunteer created with location:", volunteer.name);
     } else {
       volunteer.coordinates = coordinates;
+      // If no current task, ensure they are free
+      if (!volunteer.currentTask) {
+        volunteer.status = "free";
+        volunteer.isAvailable = true;
+      }
       await volunteer.save();
       console.log("Existing volunteer logged in and location updated:", volunteer.name);
     }

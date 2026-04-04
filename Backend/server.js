@@ -132,7 +132,18 @@ mongoose.connect(process.env.MONGODB_URI)
 
         for (let vol of busyVolunteers) {
           const report = vol.currentTask;
-          if (!report || !vol.coordinates || !report.coordinates) continue;
+          
+          // Cleanup: If volunteer is busy but has no task or task is not assigned, free them
+          if (!report || report.status !== 'assigned') {
+            console.log(`Freeing volunteer ${vol.name} because task is missing or not assigned.`);
+            vol.status = "free";
+            vol.currentTask = null;
+            vol.isAvailable = true;
+            await vol.save();
+            continue;
+          }
+
+          if (!vol.coordinates || !report.coordinates) continue;
 
           // Move 10% closer toward victim
           const newLat = vol.coordinates.lat + (report.coordinates.lat - vol.coordinates.lat) * 0.1;

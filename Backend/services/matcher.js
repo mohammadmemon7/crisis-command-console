@@ -19,6 +19,7 @@ function haversine(lat1, lng1, lat2, lng2) {
  */
 async function findAndAssignVolunteer(report, options = {}) {
   try {
+    if (report.mode === 'manual') return null; // NEVER auto-assign manual reports
     if (!report.coordinates?.lat || report.coordinates.lng == null) return null;
 
     let volunteers = await Volunteer.find({ status: 'free', isAvailable: true });

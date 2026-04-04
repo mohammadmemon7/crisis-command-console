@@ -27,6 +27,6 @@ const volunteerSchema = new mongoose.Schema({
   },
   totalResolved: { type: Number, default: 0 },
   socketId:      { type: String, default: null }
-});
+}, { timestamps: true });
 
 module.exports = mongoose.model('Volunteer', volunteerSchema);

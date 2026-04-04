@@ -15,7 +15,7 @@ async function assignTick() {
       const volunteer = await Volunteer.findOne({
         status: 'free',
         isAvailable: true
-      }).sort({ registeredAt: 1 });
+      }).sort({ createdAt: 1 });
 
       if (!volunteer) break;
 
