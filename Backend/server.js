@@ -75,6 +75,39 @@ mongoose.connect(process.env.MONGODB_URI)
     console.log('MongoDB connected');
     // require('./services/simulation').startSimulation(); // Disabled in favor of strict engines below
 
+    // Helper to emit stats
+    const emitStats = async () => {
+      try {
+        const statsObj = await Stats.findOne();
+        const active = await Report.countDocuments({ status: 'assigned' });
+        const volunteersDeployed = await Volunteer.countDocuments({ status: 'busy' });
+        
+        // Match logic in stats.js
+        const reports = await Report.find({ assignedAt: { $ne: null } });
+        let totalTime = 0;
+        reports.forEach(r => {
+          if (r.assignedAt && r.createdAt) {
+            totalTime += (new Date(r.assignedAt).getTime() - new Date(r.createdAt).getTime());
+          }
+        });
+        const avgMinutes = reports.length > 0 ? (totalTime / reports.length / 1000 / 60) : 0;
+        
+        const data = {
+          active,
+          resolved: statsObj ? statsObj.totalResolved : 0,
+          volunteersDeployed,
+          avgResponseTime: avgMinutes.toFixed(2)
+        };
+        
+        const socketIo = socketManager.getIO();
+        if (socketIo) {
+          socketIo.emit('statsUpdated', data);
+        }
+      } catch (err) {
+        console.error("Error emitting stats:", err);
+      }
+    };
+
     // 🔥 STEP 2: STRICT ASSIGNMENT ENGINE (NEAREST ONLY)
     setInterval(async () => {
       try {
@@ -171,13 +204,15 @@ mongoose.connect(process.env.MONGODB_URI)
             }
 
             const socketIo = socketManager.getIO();
+            const updatedVolunteer = await Volunteer.findById(nearest._id);
             if (socketIo) {
               socketIo.emit('caseAccepted', {
                 reportId: freshReport._id,
                 volunteerName: nearest.name,
                 eta: '5'
               });
-              socketIo.emit('statsUpdated');
+              socketIo.emit('volunteerUpdated', updatedVolunteer);
+              emitStats();
             }
           }
         }
@@ -203,6 +238,12 @@ mongoose.connect(process.env.MONGODB_URI)
             vol.activeCase = null;
             vol.isAvailable = true;
             await vol.save();
+            
+            const socketIo = socketManager.getIO();
+            if (socketIo) {
+              socketIo.emit('volunteerUpdated', vol);
+              emitStats();
+            }
             continue;
           }
 
@@ -220,6 +261,11 @@ mongoose.connect(process.env.MONGODB_URI)
           vol.coordinates = { lat: newLat, lng: newLng };
           await vol.save();
           movedCount++;
+          
+          const socketIo = socketManager.getIO();
+          if (socketIo) {
+            socketIo.emit('volunteerUpdated', vol);
+          }
         }
 
         if (movedCount > 0 && io) {
@@ -253,11 +299,23 @@ mongoose.connect(process.env.MONGODB_URI)
             if (vol) {
               vol.status = "free";
               vol.currentTask = null;
+              vol.isAvailable = true;
               await vol.save();
+              
+              const socketIo = socketManager.getIO();
+              if (socketIo) {
+                socketIo.emit('volunteerUpdated', vol);
+              }
             }
 
             await Report.findByIdAndDelete(report._id);
             console.log(`Resolved and deleted report ${report._id}, freed volunteer ${vol ? vol.name : 'unknown'}`);
+            emitStats();
+            
+            const socketIo = socketManager.getIO();
+            if (socketIo) {
+              socketIo.emit('reportDeleted', { reportId: report._id });
+            }
           }
         }
       } catch (err) {

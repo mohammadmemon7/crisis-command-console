@@ -6,6 +6,39 @@ const { classifyMessage } = require('../services/claude');
 const { createReport } = require('../services/createReport');
 const { getIO } = require('../socket');
 
+const Stats = require('../models/Stats');
+
+const emitStats = async () => {
+  try {
+    const statsObj = await Stats.findOne();
+    const active = await Report.countDocuments({ status: 'assigned' });
+    const volunteersDeployed = await Volunteer.countDocuments({ status: 'busy' });
+    
+    const reports = await Report.find({ assignedAt: { $ne: null } });
+    let totalTime = 0;
+    reports.forEach(r => {
+      if (r.assignedAt && r.createdAt) {
+        totalTime += (new Date(r.assignedAt).getTime() - new Date(r.createdAt).getTime());
+      }
+    });
+    const avgMinutes = reports.length > 0 ? (totalTime / reports.length / 1000 / 60) : 0;
+    
+    const data = {
+      active,
+      resolved: statsObj ? statsObj.totalResolved : 0,
+      volunteersDeployed,
+      avgResponseTime: avgMinutes.toFixed(2)
+    };
+    
+    const io = getIO();
+    if (io) {
+      io.emit('statsUpdated', data);
+    }
+  } catch (err) {
+    console.error("Error emitting stats:", err);
+  }
+};
+
 router.post('/', async (req, res) => {
   console.log('🔥 BACKEND HIT', req.body);
   try {
@@ -53,6 +86,7 @@ router.post('/', async (req, res) => {
       const io = getIO();
       if (io) {
         io.emit('newManualRequest', savedReport);
+        emitStats();
       }
     }
 
@@ -121,7 +155,8 @@ router.patch('/:id/respond', async (req, res) => {
           volunteerName: volunteer.name,
           eta: '8'
         });
-        io.emit('statsUpdated');
+        io.emit('volunteerUpdated', volunteer);
+        emitStats();
       }
       return res.json({ success: true, report: updatedReport });
     } else if (action === "reject") {

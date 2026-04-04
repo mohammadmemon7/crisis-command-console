@@ -124,8 +124,46 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchAllData();
-    const interval = setInterval(fetchAllData, 2000);
-    return () => clearInterval(interval);
+    const interval = setInterval(fetchAllData, 5000); // Polling as fallback
+
+    // Socket listeners for real-time stats and volunteers
+    const handleStatsUpdate = (newStats: any) => {
+      if (newStats) {
+        setStats({
+          active: newStats.active,
+          resolved: newStats.resolved,
+          volunteersDeployed: newStats.volunteersDeployed,
+          avgResponseTimeMinutes: Number(newStats.avgResponseTime)
+        });
+      } else {
+        // If server just sends a ping, fetch full stats
+        fetch(`${API_URL}/api/stats`)
+          .then(res => res.json())
+          .then(statsJson => {
+            setStats({
+              active: statsJson.active,
+              resolved: statsJson.resolved,
+              volunteersDeployed: statsJson.volunteersDeployed,
+              avgResponseTimeMinutes: Number(statsJson.avgResponseTime)
+            });
+          });
+      }
+    };
+
+    const handleVolunteerUpdate = (volunteer: any) => {
+      setVolunteers(prev => prev.map(v => v._id === volunteer._id ? { ...v, ...volunteer } : v));
+    };
+
+    socketService.on('statsUpdated', handleStatsUpdate);
+    socketService.on('volunteerUpdated', handleVolunteerUpdate);
+    socketService.on('caseAccepted', () => fetchAllData()); // Refresh everything on assignment
+
+    return () => {
+      clearInterval(interval);
+      socketService.off('statsUpdated', handleStatsUpdate);
+      socketService.off('volunteerUpdated', handleVolunteerUpdate);
+      socketService.off('caseAccepted', () => fetchAllData());
+    };
   }, []);
 
   const addReport = (report: any) => {
