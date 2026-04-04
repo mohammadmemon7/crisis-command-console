@@ -88,7 +88,7 @@ mongoose.connect(process.env.MONGODB_URI)
         const freeVolunteers = await Volunteer.find({ status: "free", isAvailable: true });
 
         if (reports.length > 0 && freeVolunteers.length > 0) {
-          console.log(`[Assignment Engine] Processing ${reports.length} chaos reports with ${freeVolunteers.length} free volunteers`);
+          console.log(`[Assignment Engine] Processing ${reports.length} chaos reports with ${freeVolunteers.length} free volunteers: ${freeVolunteers.map(v => v.name).join(', ')}`);
         }
 
         for (let report of reports) {
@@ -146,9 +146,11 @@ mongoose.connect(process.env.MONGODB_URI)
             nearest.status = "busy";
             nearest.isAvailable = false;
             nearest.currentTask = report._id;
+            nearest.activeCase = report._id;
 
             await report.save();
             await nearest.save();
+            console.log(`[Assignment Engine] Assigned ${report._id} to ${nearest.name}`);
             
             // Remove assigned volunteer from local list for this tick
             if (nearestIdx !== -1) {
@@ -175,28 +177,40 @@ mongoose.connect(process.env.MONGODB_URI)
     setInterval(async () => {
       try {
         const busyVolunteers = await Volunteer.find({ status: "busy" }).populate("currentTask");
+        let movedCount = 0;
 
         for (let vol of busyVolunteers) {
           const report = vol.currentTask;
           
           // Cleanup: If volunteer is busy but has no task or task is not assigned, free them
           if (!report || report.status !== 'assigned') {
-            console.log(`Freeing volunteer ${vol.name} because task is missing or not assigned.`);
+            console.log(`[Movement Engine] Freeing volunteer ${vol.name} because task is missing or not assigned.`);
             vol.status = "free";
             vol.currentTask = null;
+            vol.activeCase = null;
             vol.isAvailable = true;
             await vol.save();
             continue;
           }
 
-          if (!vol.coordinates || !report.coordinates) continue;
+          const vlat = vol.coordinates?.lat ?? vol.location?.lat;
+          const vlng = vol.coordinates?.lng ?? vol.location?.lng;
+          const rlat = report.coordinates?.lat;
+          const rlng = report.coordinates?.lng;
 
-          // Move 10% closer toward victim
-          const newLat = vol.coordinates.lat + (report.coordinates.lat - vol.coordinates.lat) * 0.1;
-          const newLng = vol.coordinates.lng + (report.coordinates.lng - vol.coordinates.lng) * 0.1;
+          if (vlat == null || vlng == null || rlat == null || rlng == null) continue;
+
+          // Move 15% closer toward victim each tick (2s)
+          const newLat = vlat + (rlat - vlat) * 0.15;
+          const newLng = vlng + (rlng - vlng) * 0.15;
 
           vol.coordinates = { lat: newLat, lng: newLng };
           await vol.save();
+          movedCount++;
+        }
+
+        if (movedCount > 0 && io) {
+          io.emit('simulationTick', { type: 'movement' });
         }
       } catch (err) {
         console.error("Movement Engine Error:", err);

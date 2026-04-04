@@ -105,6 +105,7 @@ const volunteers = [
 
 const reports = [
     {
+        name: 'John Doe',
         rawMessage: 'Flood in Andheri subway, 8 people trapped',
         location: 'Andheri',
         coordinates: { lat: 19.119, lng: 72.846 },
@@ -115,6 +116,7 @@ const reports = [
         source: 'app'
     },
     {
+        name: 'Alice Smith',
         rawMessage: 'Dharavi slum flooding, families on rooftops',
         location: 'Dharavi',
         coordinates: { lat: 19.044, lng: 72.862 },
@@ -125,6 +127,7 @@ const reports = [
         source: 'sms'
     },
     {
+        name: 'Robert Brown',
         rawMessage: 'Old man collapsed near Kurla station, need ambulance',
         location: 'Kurla',
         coordinates: { lat: 19.037, lng: 72.855 },
@@ -135,6 +138,7 @@ const reports = [
         source: 'app'
     },
     {
+        name: 'Sarah Connor',
         rawMessage: 'Building wall collapsed in Bandra, 3 people injured',
         location: 'Bandra',
         coordinates: { lat: 19.059, lng: 72.836 },
@@ -145,6 +149,7 @@ const reports = [
         source: 'app'
     },
     {
+        name: 'Michael Bay',
         rawMessage: 'Powai lake overflowing, road blocked, vehicles stuck',
         location: 'Powai',
         coordinates: { lat: 19.086, lng: 72.898 },
@@ -155,6 +160,7 @@ const reports = [
         source: 'sms'
     },
     {
+        name: 'David Wilson',
         rawMessage: 'No food for 2 days in Govandi relief camp',
         location: 'Govandi',
         coordinates: { lat: 19.052, lng: 72.918 },
@@ -165,6 +171,7 @@ const reports = [
         source: 'app'
     },
     {
+        name: 'James Bond',
         rawMessage: 'Sion hospital flooding, patients need evacuation',
         location: 'Sion',
         coordinates: { lat: 19.026, lng: 72.858 },
@@ -175,6 +182,7 @@ const reports = [
         source: 'app'
     },
     {
+        name: 'Rahul Kumar',
         rawMessage: 'Bachao Vikhroli mein paani aa gaya ghar mein',
         location: 'Vikhroli',
         coordinates: { lat: 19.133, lng: 72.919 },
@@ -185,6 +193,7 @@ const reports = [
         source: 'sms'
     },
     {
+        name: 'Linda Belcher',
         rawMessage: 'Malad link road flooded, ambulance cannot pass',
         location: 'Malad',
         coordinates: { lat: 19.187, lng: 72.848 },
@@ -195,6 +204,7 @@ const reports = [
         source: 'app'
     },
     {
+        name: 'Bob Belcher',
         rawMessage: 'Goregaon nallah overflow, 6 jhuggi washed away',
         location: 'Goregaon',
         coordinates: { lat: 19.156, lng: 72.857 },
@@ -205,6 +215,7 @@ const reports = [
         source: 'sms'
     },
     {
+        name: 'Bruce Wayne',
         rawMessage: 'Colaba old building, ceiling collapsed, need help',
         location: 'Colaba',
         coordinates: { lat: 18.964, lng: 72.825 },
@@ -215,6 +226,7 @@ const reports = [
         source: 'app'
     },
     {
+        name: 'Clark Kent',
         rawMessage: 'Thane creek flooding, fishermen boats stuck',
         location: 'Thane',
         coordinates: { lat: 19.176, lng: 72.946 },
@@ -225,6 +237,7 @@ const reports = [
         source: 'app'
     },
     {
+        name: 'Diana Prince',
         rawMessage: 'Dadar market waterlogging, elderly stuck in shops',
         location: 'Dadar',
         coordinates: { lat: 19.076, lng: 72.877 },
@@ -235,6 +248,7 @@ const reports = [
         source: 'sms'
     },
     {
+        name: 'Barry Allen',
         rawMessage: 'Kalyan flood relief camp needs medicines urgently',
         location: 'Kalyan',
         coordinates: { lat: 19.218, lng: 72.978 },
@@ -245,6 +259,7 @@ const reports = [
         source: 'app'
     },
     {
+        name: 'Arthur Curry',
         rawMessage: 'Chembur gas leak near residential area, evacuate',
         location: 'Chembur',
         coordinates: { lat: 19.052, lng: 72.899 },

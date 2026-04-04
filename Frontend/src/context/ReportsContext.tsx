@@ -79,7 +79,7 @@ const MUMBAI_LOCATIONS = [
   { name: 'Thane', lat: 19.2183, lng: 72.9781 },
   { name: 'Powai', lat: 19.1176, lng: 72.9060 },
   { name: 'Juhu', lat: 19.1075, lng: 72.8263 },
-  { name: 'Versova', lat: 19.1307, lng: 71.8148 },
+  { name: 'Versova', lat: 19.1307, lng: 72.8148 },
   { name: 'Goregaon', lat: 19.1663, lng: 72.8526 },
   { name: 'Kandivali', lat: 19.2067, lng: 72.8567 },
   { name: 'Colaba', lat: 18.9067, lng: 72.8147 },
