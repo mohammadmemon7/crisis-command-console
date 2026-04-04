@@ -31,6 +31,7 @@ interface ReportsContextType {
   volunteers: ApiVolunteer[]
   addReport: (report: Report) => void
   updateReport: (id: string, update: Partial<Report>) => void
+  deleteReport: (id: string) => void
   resetReports: () => void
   refreshReports: () => Promise<void>
   injectChaos: (onProgress?: (progress: string) => void) => void
@@ -128,15 +129,30 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addReport = (report: any) => {
-    // No-op, data will be synced via polling
+    setReports(prev => {
+      const exists = prev.find(r => (r as any)._id === report._id || r.id === report.id)
+      if (exists) return prev
+      return [report, ...prev]
+    })
   }
 
   const updateReport = (id: string, update: Partial<Report>) => {
-    // No-op, data will be synced via polling
+    setReports(prev => prev.map(r => 
+      (r.id === id || (r as any)._id === id) ? { ...r, ...update } : r
+    ))
   }
 
-  const resetReports = () => {
-    // No-op
+  const deleteReport = (id: string) => {
+    setReports(prev => prev.filter(r => r.id !== id && (r as any)._id !== id))
+  }
+
+  const resetReports = async () => {
+    try {
+      await fetch(`${API_URL}/api/reports/reset`, { method: 'POST' })
+      await fetchAllData()
+    } catch (err) {
+      console.error('Reset failed:', err)
+    }
   }
 
   const injectChaos = async (onProgress?: (progress: string) => void) => {
@@ -149,6 +165,7 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
       const payload = {
         rawMessage: msg,
         source: 'app',
+        mode: 'chaos',
         coordinates: { lat: loc.lat + latOffset, lng: loc.lng + lngOffset }
       }
 
@@ -178,7 +195,7 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <ReportsContext.Provider value={{ reports, volunteers, addReport, updateReport, resetReports, refreshReports: fetchAllData, injectChaos, stats }}>
+    <ReportsContext.Provider value={{ reports, volunteers, addReport, updateReport, deleteReport, resetReports, refreshReports: fetchAllData, injectChaos, stats }}>
       {children}
     </ReportsContext.Provider>
   )

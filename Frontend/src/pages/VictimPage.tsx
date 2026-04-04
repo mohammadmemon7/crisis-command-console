@@ -258,6 +258,7 @@ export default function VictimPage() {
         source,
         lat,
         lng,
+        mode: "manual",
         location: "User Location",
         name: reporterName.trim() || undefined,
       }),

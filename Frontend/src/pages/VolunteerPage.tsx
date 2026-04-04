@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { API_URL } from '../config'
 import { toast } from 'sonner'
+import socketService from '../services/socket'
 
 const STYLES = {
   page: {
@@ -107,11 +108,100 @@ export default function VolunteerPage() {
   const [user, setUser] = useState<any>(null)
   const [form, setForm] = useState({ name: '', phone: '', area: '' })
   const [loading, setLoading] = useState(false)
+  const [pendingReports, setPendingReports] = useState<any[]>([])
+  const [incomingRequest, setIncomingRequest] = useState<any>(null)
 
   useEffect(() => {
     const saved = localStorage.getItem('volunteer')
-    if (saved) setUser(JSON.parse(saved))
+    if (saved) {
+      const parsedUser = JSON.parse(saved)
+      setUser(parsedUser)
+      // Register socket for volunteer
+      socketService.emit('registerVolunteer', parsedUser._id)
+    }
   }, [])
+
+  useEffect(() => {
+    const handleNewRequest = (data: any) => {
+      setIncomingRequest({
+        ...data,
+        reportId: data._id
+      })
+      toast.info("🚨 New Manual Request!", {
+        description: `Location: ${data.location}`,
+        duration: 10000,
+      })
+    }
+
+    socketService.on("newManualRequest", handleNewRequest)
+    return () => {
+      socketService.off("newManualRequest", handleNewRequest)
+    }
+  }, [])
+
+  const fetchVolunteerStatus = async () => {
+    if (!user) return;
+    try {
+      const res = await fetch(`${API_URL}/api/volunteers`);
+      const data = await res.json();
+      const current = data.find((v: any) => v._id === user._id);
+      if (current) {
+        setUser(current);
+        localStorage.setItem('volunteer', JSON.stringify(current));
+      }
+    } catch (err) {
+      console.error('Failed to fetch volunteer status:', err);
+    }
+  }
+
+  useEffect(() => {
+    if (user) {
+      fetchVolunteerStatus();
+      const statusInterval = setInterval(fetchVolunteerStatus, 5000);
+      return () => clearInterval(statusInterval);
+    }
+  }, [user?._id])
+
+  const fetchPendingReports = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/reports`)
+      const data = await res.json()
+      setPendingReports(data.filter((r: any) => r.status === 'pending'))
+    } catch (err) {
+      console.error('Failed to fetch reports:', err)
+    }
+  }
+
+  useEffect(() => {
+    if (user && user.status === 'free') {
+      fetchPendingReports()
+      const interval = setInterval(fetchPendingReports, 5000)
+      return () => clearInterval(interval)
+    }
+  }, [user])
+
+  const handleRespond = async (reportId: string, action: 'accept' | 'reject') => {
+    try {
+      const res = await fetch(`${API_URL}/api/reports/${reportId}/respond`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, volunteerId: user._id })
+      })
+      const data = await res.json()
+      if (data.success) {
+        toast.success(`Request ${action}ed!`)
+        if (action === 'accept') {
+          const updatedUser = { ...user, status: 'busy' }
+          localStorage.setItem('volunteer', JSON.stringify(updatedUser))
+          setUser(updatedUser)
+        }
+        setIncomingRequest(null)
+        fetchPendingReports()
+      }
+    } catch (err) {
+      toast.error('Failed to respond to request')
+    }
+  }
 
   const getLocation = (): Promise<{ lat: number; lng: number }> => {
     return new Promise((resolve, reject) => {
@@ -155,6 +245,8 @@ export default function VolunteerPage() {
       if (data.volunteer) {
         localStorage.setItem('volunteer', JSON.stringify(data.volunteer))
         setUser(data.volunteer)
+        // Register socket for volunteer after login
+        socketService.emit('registerVolunteer', data.volunteer._id)
         toast.success("Successfully logged in!", {
           description: `Welcome, ${data.volunteer.name}. Mission active.`
         })
@@ -279,6 +371,91 @@ export default function VolunteerPage() {
               {user.status === 'busy' ? 'MISSION IN PROGRESS' : 'READY & AVAILABLE'}
             </span>
           </div>
+
+          {incomingRequest && user.status === 'free' && (
+            <div style={{ 
+              marginTop: '24px', 
+              background: 'rgba(255, 140, 0, 0.1)', 
+              padding: '20px', 
+              borderRadius: '16px',
+              border: '2px solid #FF8C00',
+              animation: 'pulse 2s infinite'
+            }}>
+              <div style={{ fontSize: '16px', fontWeight: 800, color: '#FF8C00', marginBottom: '10px' }}>
+                🚨 INSTANT ALERT
+              </div>
+              <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '5px' }}>📍 {incomingRequest.location}</div>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', marginBottom: '15px' }}>
+                Urgency: {incomingRequest.urgency}/5 | People: {incomingRequest.peopleCount}
+              </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button 
+                  onClick={() => handleRespond(incomingRequest.reportId, 'accept')}
+                  style={{ 
+                    flex: 1, padding: '12px', background: '#00C851', border: 'none', 
+                    borderRadius: '8px', color: '#fff', fontWeight: 800, cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(0, 200, 81, 0.3)'
+                  }}
+                >
+                  ACCEPT
+                </button>
+                <button 
+                  onClick={() => handleRespond(incomingRequest.reportId, 'reject')}
+                  style={{ 
+                    flex: 1, padding: '12px', background: 'rgba(255,255,255,0.1)', border: 'none', 
+                    borderRadius: '8px', color: '#fff', fontWeight: 800, cursor: 'pointer' 
+                  }}
+                >
+                  REJECT
+                </button>
+              </div>
+            </div>
+          )}
+
+          {user.status === 'free' && !incomingRequest && pendingReports.length > 0 && (
+            <div style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ fontSize: '12px', color: '#FF8C00', fontWeight: 700, textAlign: 'left' }}>
+                🚨 NEW INCOMING REQUESTS
+              </div>
+              {pendingReports.map(report => (
+                <div key={report._id} style={{ 
+                  background: 'rgba(255,255,255,0.05)', 
+                  padding: '15px', 
+                  borderRadius: '12px',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                  textAlign: 'left'
+                }}>
+                  <div style={{ fontSize: '14px', fontWeight: 600 }}>📍 {report.location}</div>
+                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)' }}>
+                    Urgency: {report.priority}/5 | People: {report.peopleCount}
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '5px' }}>
+                    <button 
+                      onClick={() => handleRespond(report._id, 'accept')}
+                      style={{ 
+                        flex: 1, padding: '8px', background: '#00C851', border: 'none', 
+                        borderRadius: '6px', color: '#fff', fontWeight: 700, cursor: 'pointer' 
+                      }}
+                    >
+                      ACCEPT
+                    </button>
+                    <button 
+                      onClick={() => handleRespond(report._id, 'reject')}
+                      style={{ 
+                        flex: 1, padding: '8px', background: 'rgba(255,255,255,0.1)', border: 'none', 
+                        borderRadius: '6px', color: '#fff', fontWeight: 700, cursor: 'pointer' 
+                      }}
+                    >
+                      REJECT
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           <button onClick={logout} style={STYLES.logoutBtn}>LOGOUT FROM SESSION</button>
         </div>

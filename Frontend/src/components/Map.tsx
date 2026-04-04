@@ -185,7 +185,7 @@ const getTimelineHtml = (report: Report) => {
 type FilterType = 'all' | 'critical' | 'unassigned' | 'resolved'
 
 const Map = () => {
-  const { reports, volunteers, updateReport } = useReports()
+  const { reports, volunteers, updateReport, addReport, deleteReport } = useReports()
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
 
   useEffect(() => {
@@ -194,38 +194,74 @@ const Map = () => {
   }, [reports, volunteers])
 
   useEffect(() => {
-    // FIX 1: reportUpdated listener for real-time pin transitions
     const handleReportUpdate = (update: any) => {
       const id = update.reportId || update.id
+      if (!id) return;
+
       updateReport(id, {
         status: update.status,
-        assignedTo: update.volunteerName,
+        assignedTo: update.volunteerId || update.volunteerName,
         assignedVolunteer: update.volunteerName
       })
 
       toast.success("Incident Updated", {
-        description: `Case ${id.slice(-4)} is now ${update.status.toUpperCase()}`,
+        description: `Case ${id.toString().slice(-4)} is now ${update.status.toUpperCase()}`,
         duration: 3000,
       })
     }
 
-    const handleNewReport = (report: Report) => {
+    const handleCaseAccepted = (data: any) => {
+      const id = data.reportId
+      if (!id) return;
+
+      updateReport(id, {
+        status: 'assigned',
+        assignedTo: data.volunteerId || data.volunteerName,
+        assignedVolunteer: data.volunteerName
+      })
+
+      toast.success("Case Accepted", {
+        description: `${data.volunteerName} is en route to ${id.toString().slice(-4)}`,
+        duration: 4000,
+      })
+    }
+
+    const handleDeleteReport = (data: any) => {
+      const id = data.reportId || data.id
+      if (id) deleteReport(id)
+    }
+
+    const handleNewReport = (report: any) => {
+      addReport(report)
       toast.error("🚨 New Incident Alert", {
-        description: `${report.location} — Priority ${(report as any).priority ?? report.urgency}/5`,
+        description: `${report.location} — Priority ${report.priority || report.urgency}/5`,
         duration: 3000,
       })
     }
 
     socketService.on('newReport', handleNewReport)
+    socketService.on('newManualRequest', handleNewReport)
     socketService.on('reportUpdated', handleReportUpdate)
+    socketService.on('caseAccepted', handleCaseAccepted)
+    socketService.on('reportDeleted', handleDeleteReport)
+    socketService.on('caseResolved', handleDeleteReport)
+    
     return () => {
       socketService.off('newReport', handleNewReport)
+      socketService.off('newManualRequest', handleNewReport)
       socketService.off('reportUpdated', handleReportUpdate)
+      socketService.off('caseAccepted', handleCaseAccepted)
+      socketService.off('reportDeleted', handleDeleteReport)
+      socketService.off('caseResolved', handleDeleteReport)
     }
   }, [])
 
   const filteredReports = reports.filter(r => {
     if (!hasValidCoords(r)) return false
+    
+    // Manual reports should only show on map AFTER they are accepted (assigned)
+    if ((r as any).mode === 'manual' && r.status === 'pending') return false
+    
     if (activeFilter === 'all') return true
     if (activeFilter === 'critical') return ((r as any).priority ?? r.urgency) === 5
     if (activeFilter === 'unassigned') return r.status === 'pending'
@@ -240,6 +276,12 @@ const Map = () => {
     { key: 'resolved', label: 'Resolved' },
   ]
 
+  const sortedReports = [...filteredReports].sort((a, b) => {
+    const pA = (a as any).priority ?? a.urgency ?? 0
+    const pB = (b as any).priority ?? b.urgency ?? 0
+    return pB - pA
+  })
+
   return (
     <div className="h-full w-full relative">
       <div style={{ position: 'absolute', top: '12px', left: '12px', zIndex: 1000, display: 'flex', gap: '6px' }}>
@@ -248,18 +290,25 @@ const Map = () => {
             key={f.key}
             onClick={() => setActiveFilter(f.key)}
             style={{
-              padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, border: 'none', cursor: 'pointer',
-              background: activeFilter === f.key ? '#FF8C00' : 'rgba(20,20,30,0.85)', color: activeFilter === f.key ? '#fff' : '#ccc',
-              backdropFilter: 'blur(4px)', transition: 'all 0.15s ease',
+              padding: '6px 12px',
+              fontSize: '11px',
+              fontWeight: 'bold',
+              borderRadius: '6px',
+              border: '1px solid rgba(255,255,255,0.1)',
+              background: activeFilter === f.key ? '#2563EB' : 'rgba(15, 23, 42, 0.8)',
+              color: 'white',
+              cursor: 'pointer',
+              backdropFilter: 'blur(4px)',
+              transition: 'all 0.2s ease'
             }}
           >
-            {f.label}
+            {f.label.toUpperCase()}
           </button>
         ))}
       </div>
 
-      <MapContainer center={[19.0760, 72.8777]} zoom={12} style={{ height: '100%', width: '100%' }} zoomControl={false}>
-        <TileLayer attribution='&copy; CARTO' url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+      <MapContainer center={[19.076, 72.877]} zoom={12} className="h-full w-full" style={{ background: '#1e1e1e' }}>
+        <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
 
         {reports.filter(r => r.status === 'assigned' && hasValidCoords(r)).map(report => {
           const aid = (report as any).assignedTo
@@ -275,10 +324,10 @@ const Map = () => {
           )
         })}
 
-        {filteredReports.map(report => (
+        {sortedReports.map(report => (
           <Marker
-            key={report.id || (report as any)._id}
-            position={[report.coordinates.lat, report.coordinates.lng]}
+            key={`report-${report._id || report.id}`}
+            position={[report.coordinates!.lat, report.coordinates!.lng]}
             icon={getMarkerIcon((report as any).priority ?? report.urgency, report.status, report.source)}
           >
             <Popup>
