@@ -83,11 +83,26 @@ function handleIncomingSms(req, res) {
 
       if (matchResult && matchResult.volunteer) {
         const v = matchResult.volunteer;
+
+        // ✅ CRITICAL: SAVE assignment in DB
+        report.assignedTo = v._id;
+        report.status = 'sms_pending';
+        await report.save();
+
+        // ✅ CRITICAL: SET current task for volunteer
+        v.currentTask = report._id;
+        v.status = 'busy';
+        v.isAvailable = false;
+        await v.save();
+
+        console.log("SMS REPORT CREATED:", report._id);
+        console.log("VOLUNTEER ASSIGNED:", v.name);
+        console.log("CURRENT TASK SET:", v.currentTask);
+
         const volPhone = v.phone;
         const detailMsg =
-          `CrisisNet case: ${locLabel}. Urgency ${report.priority}/5. People: ${report.peopleCount}. ` +
-          `Needs: ${(report.needs || []).join(', ')}. Dist ~${matchResult.distance} km. ` +
-          `Reply 1 = ACCEPT, Reply 2 = DECLINE`;
+          `CrisisNet case: ${report.location}. Urgency ${report.priority}/5. ` +
+          `People: ${report.peopleCount}. Reply 1 = ACCEPT, 2 = DECLINE`;
 
         if (volPhone) {
           await sendSMS(volPhone, detailMsg);
@@ -109,6 +124,8 @@ function handleIncomingSms(req, res) {
 
 router.post('/sms', handleIncomingSms);
 router.post('/api/sms', handleIncomingSms);
+router.post('/sms-reply', handleSmsReply);
+router.post('/api/sms-reply', handleSmsReply);
 
 function handleSmsReply(req, res) {
   res.set('Content-Type', 'text/xml');
@@ -140,6 +157,7 @@ function handleSmsReply(req, res) {
 
         volunteer.isAvailable = false;
         volunteer.status = 'busy';
+        volunteer.currentTask = report._id; // 🔥 STEP 3: FIX ACCEPT FLOW
         await volunteer.save();
 
         emit('reportUpdated', {
@@ -212,9 +230,9 @@ function handleSmsReply(req, res) {
           return;
         }
 
-        report.status = 'resolved';
-        report.resolvedAt = new Date();
-        await report.save();
+        const reportId = report._id;
+        // 🔥 STEP 4: FIX DONE FLOW (CRITICAL)
+        await Report.findByIdAndDelete(reportId);
 
         volunteer.currentTask = null;
         volunteer.status = 'free';
@@ -223,8 +241,8 @@ function handleSmsReply(req, res) {
         await volunteer.save();
 
         emit('reportUpdated', {
-          reportId: report._id,
-          id: report._id,
+          reportId: reportId,
+          id: reportId,
           status: 'resolved'
         });
 

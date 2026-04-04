@@ -78,10 +78,13 @@ mongoose.connect(process.env.MONGODB_URI)
     // 🔥 STEP 2: STRICT ASSIGNMENT ENGINE (NEAREST ONLY)
     setInterval(async () => {
       try {
-        const reports = await Report.find({ status: "pending" });
+        const reports = await Report.find({ status: { $in: ["pending", "sms_pending"] } });
         const volunteers = await Volunteer.find({ status: "free" });
 
         for (let report of reports) {
+          // 🔥 STEP 5: PREVENT DUPLICATE ASSIGNMENT
+          if (report.assignedTo) continue;
+
           let nearest = null;
           let minDist = Infinity;
 
@@ -103,6 +106,7 @@ mongoose.connect(process.env.MONGODB_URI)
             report.status = "assigned";
             report.assignedTo = nearest._id;
             report.startedAt = new Date();
+            report.assignedAt = new Date(); // 🔥 TRACK ASSIGNMENT TIME
 
             nearest.status = "busy";
             nearest.currentTask = report._id;

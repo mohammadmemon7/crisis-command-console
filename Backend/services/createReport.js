@@ -13,7 +13,8 @@ const createReport = async (data) => {
     needs: data.needs && data.needs.length ? data.needs : ['rescue'],
     source: data.source || 'app',
     senderPhone: data.senderPhone || null,
-    status: 'pending'
+    status: 'pending',
+    urgency: data.priority != null ? data.priority : (data.urgency != null ? data.urgency : 3)
   });
 
   return await report.save();

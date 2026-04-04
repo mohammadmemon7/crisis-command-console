@@ -13,6 +13,8 @@ const reportSchema = new mongoose.Schema({
   needs:         { type: [String], default: ['rescue'] },
   source:        { type: String, enum: ['app', 'sms', 'voice', 'sos'], default: 'app' },
   senderPhone:   { type: String, default: null },
+  area:          { type: String, default: '' },
+  assignedVolunteerPhone: { type: String, default: null },
   status:        {
     type: String,
     enum: ['pending', 'sms_pending', 'assigned', 'resolved'],
@@ -20,6 +22,7 @@ const reportSchema = new mongoose.Schema({
   },
   assignedTo:    { type: mongoose.Schema.Types.ObjectId, ref: 'Volunteer', default: null },
   startedAt:     { type: Date, default: null },
+  assignedAt:    { type: Date, default: null },
   resolvedAt:    { type: Date, default: null }
 }, { timestamps: true });
 
