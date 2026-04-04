@@ -4,7 +4,7 @@ const Volunteer = require('../models/Volunteer');
 
 router.get('/api/volunteers', async (req, res) => {
   try {
-    const volunteers = await Volunteer.find();
+    const volunteers = await Volunteer.find().populate('currentTask');
     return res.status(200).json(volunteers);
   } catch (error) {
     return res.status(500).json({ error: 'Server error', details: error.message });
