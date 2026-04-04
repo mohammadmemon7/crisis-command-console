@@ -73,4 +73,35 @@ router.get('/', async (req, res) => {
   }
 });
 
+router.patch('/:id/respond', async (req, res) => {
+  try {
+    const { action, volunteerId } = req.body;
+    const report = await Report.findById(req.params.id);
+
+    if (!report) {
+      return res.status(404).json({ error: "Report not found" });
+    }
+
+    if (action === "accept") {
+      report.status = "assigned";
+      report.assignedTo = volunteerId;
+      report.assignedAt = new Date();
+      report.startedAt = new Date();
+
+      await Volunteer.findByIdAndUpdate(volunteerId, {
+        status: "busy",
+        currentTask: report._id
+      });
+    } else if (action === "reject") {
+      report.status = "pending";
+      report.assignedTo = null;
+    }
+
+    await report.save();
+    res.json({ success: true, report });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;
