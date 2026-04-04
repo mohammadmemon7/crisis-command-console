@@ -55,11 +55,11 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
-        <ReportsProvider>
+      <ReportsProvider>
+        <BrowserRouter>
           <AppContent />
-        </ReportsProvider>
-      </BrowserRouter>
+        </BrowserRouter>
+      </ReportsProvider>
     </TooltipProvider>
   </QueryClientProvider>
 )

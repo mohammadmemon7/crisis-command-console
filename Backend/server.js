@@ -38,9 +38,9 @@ const corsOptions = {
 };
 
 // 7) Ensure CORS middleware is mounted BEFORE routes.
-app.use(cors(corsOptions));
+app.use(cors());
 // 5) Handle preflight globally
-app.options("*", cors(corsOptions));
+app.options("*", cors());
 
 app.use(compression());
 app.use(express.json());
@@ -197,9 +197,26 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date(), mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' });
 });
 
+app.use((req, res, next) => {
+  console.log(`Incoming Request: ${req.method} ${req.url}`);
+  next();
+});
+
 app.get("/", (req, res) => {
   res.send("Backend is running 🚀");
 });
+
+app.get("/test", (req, res) => {
+  res.send("Server working");
+});
+
+app.get("/check", (req, res) => {
+  res.send("CHECK OK");
+});
+
+// 🔥 MOUNT VOLUNTEER ROUTES
+const volunteerRoutes = require('./routes/volunteer');
+app.use('/api/volunteer', volunteerRoutes);
 
 app.use('/api/reports', require('./routes/reports'));
 app.use(require('./routes/stats'));
@@ -207,5 +224,6 @@ app.use('/api', smsRouter);
 app.use(require('./routes/volunteers'));
 app.use(require('./routes/test'));
 
+console.log("=== SERVER FILE LOADED AND RUNNING ===");
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log('CrisisNet backend running on port', PORT));

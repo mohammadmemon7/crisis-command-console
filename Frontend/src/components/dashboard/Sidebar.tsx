@@ -322,7 +322,7 @@ export function Sidebar() {
         <StatCard icon={AlertTriangle} label="Active Cases"        value={stats.active}       accent="red"    />
         <StatCard icon={CheckCircle}   label="Resolved Cases"      value={stats.resolved}      accent="green"  />
         <StatCard icon={Users}         label="Volunteers Deployed" value={stats.volunteersDeployed} accent="blue"   />
-        <StatCard icon={Clock}         label="Avg Response"        value={`${Number(stats.avgResponseTimeMinutes).toFixed(2)} min`}  accent="orange" />
+        <StatCard icon={Clock}         label="Avg Response"        value={`${stats.avgResponseTimeMinutes} min`}  accent="orange" />
       </div>
 
       <div className="h-px bg-border" />
