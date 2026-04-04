@@ -4,7 +4,12 @@ const volunteerSchema = new mongoose.Schema({
   name:          { type: String, default: 'Volunteer' },
   phone:         { type: String, default: '' },
   area:          { type: String, default: '' },
+  skills:        { type: [String], default: [] },
   coordinates: {
+    lat: { type: Number },
+    lng: { type: Number }
+  },
+  location: {
     lat: { type: Number },
     lng: { type: Number }
   },

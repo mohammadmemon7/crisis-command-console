@@ -28,29 +28,45 @@ async function assignTick() {
       let minDist = Infinity;
       let nearestIdx = -1;
 
-      for (let i = 0; i < availableVolunteers.length; i++) {
-        const vol = availableVolunteers[i];
-        if (!vol.coordinates || vol.coordinates.lat == null) continue;
+      // Try to find a suitable volunteer first (skill match)
+      const needs = report.needs || [];
+      let candidates = availableVolunteers;
+      
+      if (needs.length > 0) {
+        const skillMatched = availableVolunteers.filter(v => 
+          v.skills && v.skills.some(s => needs.includes(s))
+        );
+        if (skillMatched.length > 0) {
+          candidates = skillMatched;
+        }
+      }
+
+      for (let i = 0; i < candidates.length; i++) {
+        const vol = candidates[i];
+        const vlat = vol.coordinates?.lat ?? vol.location?.lat;
+        const vlng = vol.coordinates?.lng ?? vol.location?.lng;
+        
+        if (vlat == null || vlng == null) continue;
 
         const dist = getDistance(
           report.coordinates.lat,
           report.coordinates.lng,
-          vol.coordinates.lat,
-          vol.coordinates.lng
+          vlat,
+          vlng
         );
 
         if (dist < minDist) {
           minDist = dist;
           nearest = vol;
-          nearestIdx = i;
+          nearestIdx = availableVolunteers.indexOf(vol);
         }
       }
 
       if (nearest) {
         if (nearest.homeLocation == null || nearest.homeLocation.lat == null) {
           nearest.homeLocation = {
-            lat: nearest.coordinates.lat,
-            lng: nearest.coordinates.lng
+            lat: nearest.coordinates?.lat ?? nearest.location?.lat,
+            lng: nearest.coordinates?.lng ?? nearest.location?.lng
           };
         }
 

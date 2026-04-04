@@ -78,8 +78,14 @@ mongoose.connect(process.env.MONGODB_URI)
     // 🔥 STEP 2: STRICT ASSIGNMENT ENGINE (NEAREST ONLY)
     setInterval(async () => {
       try {
+        // Proactive Cleanup: Ensure all free volunteers with no task are actually available
+        await Volunteer.updateMany(
+          { status: "free", currentTask: null, isAvailable: false },
+          { isAvailable: true }
+        );
+
         const reports = await Report.find({ status: { $in: ["pending", "sms_pending"] }, mode: "chaos" });
-        const freeVolunteers = await Volunteer.find({ status: "free" });
+        const freeVolunteers = await Volunteer.find({ status: "free", isAvailable: true });
 
         if (reports.length > 0 && freeVolunteers.length > 0) {
           console.log(`[Assignment Engine] Processing ${reports.length} chaos reports with ${freeVolunteers.length} free volunteers`);
@@ -93,22 +99,38 @@ mongoose.connect(process.env.MONGODB_URI)
           let minDist = Infinity;
           let nearestIdx = -1;
 
-          for (let i = 0; i < freeVolunteers.length; i++) {
-            const vol = freeVolunteers[i];
-            if (!vol.coordinates || vol.coordinates.lat == null || vol.coordinates.lng == null) continue;
+          // Try to find a suitable volunteer first (skill match)
+          const needs = report.needs || [];
+          let candidates = freeVolunteers;
+          
+          if (needs.length > 0) {
+            const skillMatched = freeVolunteers.filter(v => 
+              v.skills && v.skills.some(s => needs.includes(s))
+            );
+            if (skillMatched.length > 0) {
+              candidates = skillMatched;
+            }
+          }
+
+          for (let i = 0; i < candidates.length; i++) {
+            const vol = candidates[i];
+            const vlat = vol.coordinates?.lat ?? vol.location?.lat;
+            const vlng = vol.coordinates?.lng ?? vol.location?.lng;
+            
+            if (vlat == null || vlng == null) continue;
             if (!report.coordinates || report.coordinates.lat == null || report.coordinates.lng == null) continue;
 
             const dist = getDistance(
               report.coordinates.lat,
               report.coordinates.lng,
-              vol.coordinates.lat,
-              vol.coordinates.lng
+              vlat,
+              vlng
             );
 
             if (dist < minDist) {
               minDist = dist;
               nearest = vol;
-              nearestIdx = i;
+              nearestIdx = freeVolunteers.indexOf(vol);
             }
           }
 
@@ -122,13 +144,16 @@ mongoose.connect(process.env.MONGODB_URI)
             report.assignedAt = new Date();
 
             nearest.status = "busy";
+            nearest.isAvailable = false;
             nearest.currentTask = report._id;
 
             await report.save();
             await nearest.save();
             
             // Remove assigned volunteer from local list for this tick
-            freeVolunteers.splice(nearestIdx, 1);
+            if (nearestIdx !== -1) {
+              freeVolunteers.splice(nearestIdx, 1);
+            }
 
             const socketIo = socketManager.getIO();
             if (socketIo) {

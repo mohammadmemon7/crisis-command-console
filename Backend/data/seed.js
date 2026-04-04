@@ -9,7 +9,7 @@ const volunteers = [
         name: 'Rajesh Patil',
         phone: process.env.TWILIO_PHONE_NUMBER,
         skills: ['rescue', 'boat'],
-        location: { lat: 19.119, lng: 72.846 },
+        coordinates: { lat: 19.119, lng: 72.846 },
         area: 'Andheri West',
         isAvailable: true
     },
@@ -17,7 +17,7 @@ const volunteers = [
         name: 'Priya Sharma',
         phone: process.env.TWILIO_PHONE_NUMBER,
         skills: ['medical', 'rescue'],
-        location: { lat: 19.044, lng: 72.862 },
+        coordinates: { lat: 19.044, lng: 72.862 },
         area: 'Dharavi',
         isAvailable: true
     },
@@ -25,7 +25,7 @@ const volunteers = [
         name: 'Mohammed Khan',
         phone: process.env.TWILIO_PHONE_NUMBER,
         skills: ['boat', 'rescue'],
-        location: { lat: 19.037, lng: 72.855 },
+        coordinates: { lat: 19.037, lng: 72.855 },
         area: 'Kurla',
         isAvailable: true
     },
@@ -33,7 +33,7 @@ const volunteers = [
         name: 'Sunita Desai',
         phone: process.env.TWILIO_PHONE_NUMBER,
         skills: ['food', 'shelter'],
-        location: { lat: 19.176, lng: 72.946 },
+        coordinates: { lat: 19.176, lng: 72.946 },
         area: 'Thane',
         isAvailable: true
     },
@@ -41,7 +41,7 @@ const volunteers = [
         name: 'Amit Verma',
         phone: process.env.TWILIO_PHONE_NUMBER,
         skills: ['vehicle', 'rescue'],
-        location: { lat: 19.059, lng: 72.836 },
+        coordinates: { lat: 19.059, lng: 72.836 },
         area: 'Bandra',
         isAvailable: true
     },
@@ -49,7 +49,7 @@ const volunteers = [
         name: 'Kavita Nair',
         phone: process.env.TWILIO_PHONE_NUMBER,
         skills: ['medical', 'food'],
-        location: { lat: 18.964, lng: 72.825 },
+        coordinates: { lat: 18.964, lng: 72.825 },
         area: 'Colaba',
         isAvailable: true
     },
@@ -57,7 +57,7 @@ const volunteers = [
         name: 'Suresh Yadav',
         phone: process.env.TWILIO_PHONE_NUMBER,
         skills: ['boat', 'vehicle'],
-        location: { lat: 19.086, lng: 72.898 },
+        coordinates: { lat: 19.086, lng: 72.898 },
         area: 'Powai',
         isAvailable: true
     },
@@ -65,7 +65,7 @@ const volunteers = [
         name: 'Meena Joshi',
         phone: process.env.TWILIO_PHONE_NUMBER,
         skills: ['shelter', 'food'],
-        location: { lat: 19.218, lng: 72.978 },
+        coordinates: { lat: 19.218, lng: 72.978 },
         area: 'Kalyan',
         isAvailable: true
     },
@@ -73,7 +73,7 @@ const volunteers = [
         name: 'Rahul Sawant',
         phone: process.env.TWILIO_PHONE_NUMBER,
         skills: ['rescue', 'medical'],
-        location: { lat: 19.133, lng: 72.919 },
+        coordinates: { lat: 19.133, lng: 72.919 },
         area: 'Vikhroli',
         isAvailable: true
     },
@@ -81,7 +81,7 @@ const volunteers = [
         name: 'Deepa Kulkarni',
         phone: process.env.TWILIO_PHONE_NUMBER,
         skills: ['medical', 'shelter'],
-        location: { lat: 19.026, lng: 72.858 },
+        coordinates: { lat: 19.026, lng: 72.858 },
         area: 'Sion',
         isAvailable: true
     },
@@ -89,7 +89,7 @@ const volunteers = [
         name: 'Vinod Tawde',
         phone: process.env.TWILIO_PHONE_NUMBER,
         skills: ['boat', 'rescue', 'vehicle'],
-        location: { lat: 19.156, lng: 72.857 },
+        coordinates: { lat: 19.156, lng: 72.857 },
         area: 'Goregaon',
         isAvailable: true
     },
@@ -97,7 +97,7 @@ const volunteers = [
         name: 'Anjali Singh',
         phone: process.env.TWILIO_PHONE_NUMBER,
         skills: ['food', 'water', 'shelter'],
-        location: { lat: 19.076, lng: 72.877 },
+        coordinates: { lat: 19.076, lng: 72.877 },
         area: 'Dadar',
         isAvailable: true
     }
