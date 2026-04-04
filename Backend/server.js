@@ -92,7 +92,10 @@ mongoose.connect(process.env.MONGODB_URI)
         }
 
         for (let report of reports) {
-          if (report.assignedTo) continue;
+          // Double-check report is still unassigned in DB
+          const freshReport = await Report.findById(report._id);
+          if (!freshReport || freshReport.assignedTo) continue;
+
           if (freeVolunteers.length === 0) break;
 
           let nearest = null;
@@ -100,7 +103,7 @@ mongoose.connect(process.env.MONGODB_URI)
           let nearestIdx = -1;
 
           // Try to find a suitable volunteer first (skill match)
-          const needs = report.needs || [];
+          const needs = freshReport.needs || [];
           let candidates = freeVolunteers;
           
           if (needs.length > 0) {
@@ -118,11 +121,11 @@ mongoose.connect(process.env.MONGODB_URI)
             const vlng = vol.coordinates?.lng ?? vol.location?.lng;
             
             if (vlat == null || vlng == null) continue;
-            if (!report.coordinates || report.coordinates.lat == null || report.coordinates.lng == null) continue;
+            if (!freshReport.coordinates || freshReport.coordinates.lat == null || freshReport.coordinates.lng == null) continue;
 
             const dist = getDistance(
-              report.coordinates.lat,
-              report.coordinates.lng,
+              freshReport.coordinates.lat,
+              freshReport.coordinates.lng,
               vlat,
               vlng
             );
@@ -135,22 +138,32 @@ mongoose.connect(process.env.MONGODB_URI)
           }
 
           if (nearest) {
+            // ATOMIC UPDATE: Only assign if report is still pending
+            const updateResult = await Report.findOneAndUpdate(
+              { _id: freshReport._id, assignedTo: null },
+              { 
+                status: "assigned",
+                assignedTo: nearest._id,
+                startedAt: new Date(),
+                assignedAt: new Date()
+              },
+              { new: true }
+            );
+
+            if (!updateResult) {
+              console.log(`[Assignment Engine] Report ${freshReport._id} was already assigned, skipping.`);
+              continue;
+            }
+
             console.log(`[Assignment Engine] Nearest found: ${nearest.name} at distance ${minDist.toFixed(2)}km`);
             
-            // Chaos mode always auto-assigns immediately
-            report.status = "assigned";
-            report.assignedTo = nearest._id;
-            report.startedAt = new Date();
-            report.assignedAt = new Date();
-
             nearest.status = "busy";
             nearest.isAvailable = false;
-            nearest.currentTask = report._id;
-            nearest.activeCase = report._id;
+            nearest.currentTask = freshReport._id;
+            nearest.activeCase = freshReport._id;
 
-            await report.save();
             await nearest.save();
-            console.log(`[Assignment Engine] Assigned ${report._id} to ${nearest.name}`);
+            console.log(`[Assignment Engine] Assigned ${freshReport._id} to ${nearest.name}`);
             
             // Remove assigned volunteer from local list for this tick
             if (nearestIdx !== -1) {
@@ -160,7 +173,7 @@ mongoose.connect(process.env.MONGODB_URI)
             const socketIo = socketManager.getIO();
             if (socketIo) {
               socketIo.emit('caseAccepted', {
-                reportId: report._id,
+                reportId: freshReport._id,
                 volunteerName: nearest.name,
                 eta: '5'
               });

@@ -91,26 +91,39 @@ router.patch('/:id/respond', async (req, res) => {
     }
 
     if (action === "accept") {
-      report.status = "assigned";
-      report.assignedTo = volunteerId;
-      report.assignedAt = new Date();
-      report.startedAt = new Date();
+      // ATOMIC UPDATE: Only assign if report is still pending
+      const updatedReport = await Report.findOneAndUpdate(
+        { _id: req.params.id, assignedTo: null },
+        { 
+          status: "assigned",
+          assignedTo: volunteerId,
+          assignedAt: new Date(),
+          startedAt: new Date()
+        },
+        { new: true }
+      );
+
+      if (!updatedReport) {
+        return res.status(400).json({ error: "Report already assigned to another volunteer" });
+      }
 
       const volunteer = await Volunteer.findByIdAndUpdate(volunteerId, {
         status: "busy",
-        currentTask: report._id,
+        currentTask: updatedReport._id,
+        activeCase: updatedReport._id,
         isAvailable: false
       }, { new: true });
 
       const io = getIO();
       if (io) {
         io.emit('caseAccepted', {
-          reportId: report._id,
+          reportId: updatedReport._id,
           volunteerName: volunteer.name,
           eta: '8'
         });
         io.emit('statsUpdated');
       }
+      return res.json({ success: true, report: updatedReport });
     } else if (action === "reject") {
       report.status = "pending";
       report.assignedTo = null;
